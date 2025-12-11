@@ -15,7 +15,18 @@ async def connect_to_mongo():
     """Create database connection"""
     global client, database
     try:
-        client = AsyncIOMotorClient(MONGODB_URL)
+        # Connection options to handle SSL/TLS issues on servers
+        # These options help with SSL certificate validation issues
+        client = AsyncIOMotorClient(
+            MONGODB_URL,
+            tls=True,
+            tlsAllowInvalidCertificates=False,  # Set to True only for testing if cert issues persist
+            serverSelectionTimeoutMS=30000,  # 30 seconds
+            connectTimeoutMS=30000,
+            socketTimeoutMS=30000,
+            retryWrites=True,
+            retryReads=True
+        )
         database = client[DATABASE_NAME]
         # Test connection
         await client.admin.command('ping')
