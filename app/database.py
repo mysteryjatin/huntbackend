@@ -62,8 +62,34 @@ async def create_indexes():
     
     # Users collection indexes
     users_collection = db.users
-    await users_collection.create_index([("email", 1)], unique=True)
-    await users_collection.create_index([("phone", 1)], unique=True)  # Phone must be unique for OTP signup
+    
+    # Handle email index - drop existing if it conflicts
+    try:
+        await users_collection.create_index([("email", 1)], unique=True)
+    except Exception as e:
+        if "IndexKeySpecsConflict" in str(e) or "already exists" in str(e).lower():
+            # Drop existing index and recreate
+            try:
+                await users_collection.drop_index("email_1")
+            except:
+                pass
+            await users_collection.create_index([("email", 1)], unique=True)
+        else:
+            raise
+    
+    # Handle phone index - drop existing if it conflicts (this is the problematic one)
+    try:
+        await users_collection.create_index([("phone", 1)], unique=True)  # Phone must be unique for OTP signup
+    except Exception as e:
+        if "IndexKeySpecsConflict" in str(e) or "already exists" in str(e).lower():
+            # Drop existing index and recreate
+            try:
+                await users_collection.drop_index("phone_1")
+            except:
+                pass
+            await users_collection.create_index([("phone", 1)], unique=True)
+        else:
+            raise
     
     # Reviews collection indexes
     reviews_collection = db.reviews
@@ -78,7 +104,19 @@ async def create_indexes():
     
     # Favorites collection indexes
     favorites_collection = db.favorites
-    await favorites_collection.create_index([("user_id", 1), ("property_id", 1)], unique=True)
+    # Handle unique composite index - drop existing if it conflicts
+    try:
+        await favorites_collection.create_index([("user_id", 1), ("property_id", 1)], unique=True)
+    except Exception as e:
+        if "IndexKeySpecsConflict" in str(e) or "already exists" in str(e).lower():
+            # Drop existing index and recreate
+            try:
+                await favorites_collection.drop_index("user_id_1_property_id_1")
+            except:
+                pass
+            await favorites_collection.create_index([("user_id", 1), ("property_id", 1)], unique=True)
+        else:
+            raise
     await favorites_collection.create_index([("user_id", 1)])
     
     # Transactions collection indexes
