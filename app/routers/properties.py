@@ -207,3 +207,4 @@ async def get_properties_by_owner(owner_id: str):
     return properties
 
 
+

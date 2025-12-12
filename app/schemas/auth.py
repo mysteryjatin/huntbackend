@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, EmailStr
 from typing import Optional
 
 
@@ -27,7 +27,9 @@ class VerifyOTPResponse(BaseModel):
 class SignupRequest(BaseModel):
     phone_number: str = Field(..., description="Phone number (must be OTP verified)")
     full_name: str = Field(..., min_length=2, description="Full name of the user")
+    email: Optional[EmailStr] = Field(None, description="Email address of the user")
     is_real_estate_agent: bool = Field(default=False, description="Whether user is a real estate agent")
+    user_type: Optional[str] = Field(None, description="User type: owner, buyer, agent, or user")
     terms_accepted: bool = Field(..., description="Must be true to accept terms and conditions")
 
 
@@ -36,5 +38,7 @@ class SignupResponse(BaseModel):
     user_id: str
     phone_number: str
     full_name: str
+    email: Optional[str] = None
+
 
 

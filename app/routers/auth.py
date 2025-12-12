@@ -118,14 +118,44 @@ async def signup(request: SignupRequest):
             detail="You must accept the Terms & Conditions and Privacy Policy to continue"
         )
     
-    # Determine user type based on is_real_estate_agent
-    user_type = "agent" if request.is_real_estate_agent else "buyer"
+    # Determine user type - prioritize request.user_type, then is_real_estate_agent, default to "buyer"
+    if request.user_type:
+        user_type = request.user_type.lower()
+        # Map "user" to "buyer" for backward compatibility
+        if user_type == "user":
+            user_type = "buyer"
+    elif request.is_real_estate_agent:
+        user_type = "agent"
+    else:
+        user_type = "buyer"
+    
+    # Validate user_type
+    if user_type not in ["owner", "buyer", "agent"]:
+        user_type = "buyer"  # Default to buyer if invalid
+    
+    # Use email from request if provided, otherwise generate temporary email
+    if request.email:
+        email = str(request.email).strip()
+        # Basic email validation (EmailStr already validates format, but double-check)
+        if "@" not in email or len(email) < 5:
+            email = f"{phone_number}@temp.huntproperty.com"  # Invalid email, use fallback
+    else:
+        email = f"{phone_number}@temp.huntproperty.com"  # Temporary email fallback
+    
+    # Check if email already exists (if not temporary)
+    if not email.endswith("@temp.huntproperty.com"):
+        existing_email_user = await db.users.find_one({"email": email})
+        if existing_email_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User with this email already exists"
+            )
     
     # Create user
     user_dict = {
         "name": request.full_name,
         "phone": phone_number,
-        "email": f"{phone_number}@temp.huntproperty.com",  # Temporary email, user can update later
+        "email": email,
         "user_type": user_type,
         "created_at": datetime.utcnow(),
         "password": hash_password(phone_number)  # Default password (user can change later)
@@ -142,7 +172,8 @@ async def signup(request: SignupRequest):
         message="Account created successfully",
         user_id=user_id,
         phone_number=phone_number,
-        full_name=request.full_name
+        full_name=request.full_name,
+        email=email
     )
 
 
@@ -159,5 +190,6 @@ async def check_phone_exists(phone_number: str):
         "exists": user is not None,
         "phone_number": phone_number
     }
+
 
 

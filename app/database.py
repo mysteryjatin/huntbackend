@@ -16,11 +16,12 @@ async def connect_to_mongo():
     global client, database
     try:
         # Connection options to handle SSL/TLS issues on servers
-        # These options help with SSL certificate validation issues
+        # tlsAllowInvalidCertificates=True is a temporary workaround for SSL handshake issues
+        # TODO: Fix root cause by updating OpenSSL and CA certificates on server
         client = AsyncIOMotorClient(
             MONGODB_URL,
             tls=True,
-            tlsAllowInvalidCertificates=False,  # Set to True only for testing if cert issues persist
+            tlsAllowInvalidCertificates=True,  # Temporary workaround for SSL handshake errors
             serverSelectionTimeoutMS=30000,  # 30 seconds
             connectTimeoutMS=30000,
             socketTimeoutMS=30000,

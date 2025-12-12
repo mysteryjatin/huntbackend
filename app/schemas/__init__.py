@@ -240,3 +240,4 @@ class PropertySearchParams(BaseModel):
     text_search: Optional[str] = None
     geo_search: Optional[GeoSearchParams] = None
 
+
