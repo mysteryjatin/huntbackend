@@ -4,7 +4,9 @@ from datetime import datetime
 from app.schemas.auth import (
     RequestOTPRequest, RequestOTPResponse,
     VerifyOTPRequest, VerifyOTPResponse,
-    SignupRequest, SignupResponse
+    SignupRequest, SignupResponse,
+    LoginRequestOTPRequest, LoginRequestOTPResponse,
+    LoginVerifyOTPRequest, LoginVerifyOTPResponse
 )
 from app.schemas import User
 from app.services.otp_service import OTPService
@@ -190,6 +192,88 @@ async def check_phone_exists(phone_number: str):
         "exists": user is not None,
         "phone_number": phone_number
     }
+
+
+@router.post("/login/request-otp", response_model=LoginRequestOTPResponse, status_code=status.HTTP_200_OK)
+async def login_request_otp(request: LoginRequestOTPRequest):
+    """
+    Request OTP for login
+    Checks if phone number exists in database, then sends OTP
+    """
+    phone_number = request.phone_number.strip()
+    
+    # Validate phone number format (basic validation)
+    if not phone_number.startswith("+") or len(phone_number) < 10:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid phone number format. Please include country code (e.g., +918881675561)"
+        )
+    
+    # Check if user exists in database
+    db = await get_database()
+    existing_user = await db.users.find_one({"phone": phone_number})
+    if not existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User with this phone number not found. Please sign up first."
+        )
+    
+    # Generate and send OTP
+    otp = await OTPService.send_otp(phone_number)
+    
+    # Store in database (optional, for persistence across server restarts)
+    await OTPService.store_otp_in_db(phone_number, otp)
+    
+    return LoginRequestOTPResponse(
+        message="OTP sent successfully",
+        phone_number=phone_number,
+        otp=otp  # Remove this in production
+    )
+
+
+@router.post("/login/verify-otp", response_model=LoginVerifyOTPResponse, status_code=status.HTTP_200_OK)
+async def login_verify_otp(request: LoginVerifyOTPRequest):
+    """
+    Verify OTP and login user
+    After OTP verification, returns user data
+    """
+    phone_number = request.phone_number.strip()
+    otp = request.otp.strip()
+    
+    # Verify OTP (try database first, fallback to memory)
+    verified = await OTPService.verify_otp_from_db(phone_number, otp)
+    if not verified:
+        verified = await OTPService.verify_otp(phone_number, otp)
+    
+    if not verified:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired OTP. Please request a new OTP."
+        )
+    
+    # Get user from database
+    db = await get_database()
+    user = await db.users.find_one({"phone": phone_number})
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    # Clear OTP after successful login
+    await OTPService.clear_otp_from_db(phone_number)
+    await OTPService.clear_otp(phone_number)
+    
+    return LoginVerifyOTPResponse(
+        message="Login successful",
+        user_id=str(user["_id"]),
+        phone_number=user.get("phone", phone_number),
+        name=user.get("name", ""),
+        email=user.get("email"),
+        user_type=user.get("user_type", "buyer"),
+        token=None  # For future JWT implementation
+    )
 
 
 

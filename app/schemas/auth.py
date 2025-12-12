@@ -41,4 +41,31 @@ class SignupResponse(BaseModel):
     email: Optional[str] = None
 
 
+# Login Schemas
+class LoginRequestOTPRequest(BaseModel):
+    phone_number: str = Field(..., description="Phone number with country code (e.g., +918881675561)")
+
+
+class LoginRequestOTPResponse(BaseModel):
+    message: str
+    phone_number: str
+    # In production, don't return OTP. Only for testing.
+    otp: Optional[str] = None
+
+
+class LoginVerifyOTPRequest(BaseModel):
+    phone_number: str = Field(..., description="Phone number with country code")
+    otp: str = Field(..., min_length=4, max_length=6, description="OTP code")
+
+
+class LoginVerifyOTPResponse(BaseModel):
+    message: str
+    user_id: str
+    phone_number: str
+    name: str
+    email: Optional[str] = None
+    user_type: str
+    token: Optional[str] = None  # For future JWT implementation
+
+
 
