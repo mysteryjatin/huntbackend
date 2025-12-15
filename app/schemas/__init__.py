@@ -44,14 +44,70 @@ class Image(BaseModel):
 
 # Property Schemas
 class PropertyBase(BaseModel):
-    title: str
-    description: str
-    transaction_type: str = Field(..., description="rent or sale")
+    # Basic info (maps to Step 1 - User & Property Info from UI)
+    title: str  # Property Name in UI
+    description: str  # Building Description in UI
+    transaction_type: str = Field(
+        ...,
+        description="rent or sale - corresponds to 'Property For' in UI",
+    )
     price: float
+
+    # Core configuration / type
+    property_category: Optional[str] = Field(
+        default=None,
+        description="Property Type group in UI: residential, commercial, agricultural",
+    )
+    property_subtype: Optional[str] = Field(
+        default=None,
+        description=(
+            "Specific property option from UI: House or Kothi, Builder Floor, Villa, "
+            "Service Apartment, Penthouse, Studio Apartment, Flats, Duplex, Plot/Land, etc."
+        ),
+    )
+
+    # Features (maps to 'Property Features' UI screen)
     bedrooms: int
     bathrooms: int
+    balconies: Optional[int] = None
     area_sqft: float
-    furnishing: str = Field(..., description="furnished, semi-furnished, or unfurnished")
+    furnishing: str = Field(
+        ...,
+        description="furnished, semi-furnished, or unfurnished",
+    )
+    floor_number: Optional[int] = Field(
+        default=None,
+        description="Current floor number of the property",
+    )
+    total_floors: Optional[int] = Field(
+        default=None,
+        description="Total number of floors in the building",
+    )
+    floors_allowed: Optional[int] = Field(
+        default=None,
+        description="Maximum floors allowed (useful for plots)",
+    )
+    open_sides: Optional[int] = Field(
+        default=None,
+        description="Number of open sides: 1, 2, 3, or 4",
+    )
+    facing: Optional[str] = Field(
+        default=None,
+        description=(
+            "Facing of property: North, East, West, South, "
+            "North-East, South-East, North-West, South-West"
+        ),
+    )
+    store_room: Optional[bool] = Field(
+        default=None,
+        description="Whether the property has a store room (Yes/No in UI)",
+    )
+    servant_room: Optional[bool] = Field(
+        default=None,
+        description="Whether the property has a servant room (Yes/No in UI)",
+    )
+
+    # Location & media
     location: Location
     images: List[Image] = []
     amenities: List[str] = []
@@ -66,10 +122,20 @@ class PropertyUpdate(BaseModel):
     description: Optional[str] = None
     transaction_type: Optional[str] = None
     price: Optional[float] = None
+    property_category: Optional[str] = None
+    property_subtype: Optional[str] = None
     bedrooms: Optional[int] = None
     bathrooms: Optional[int] = None
+    balconies: Optional[int] = None
     area_sqft: Optional[float] = None
     furnishing: Optional[str] = None
+    floor_number: Optional[int] = None
+    total_floors: Optional[int] = None
+    floors_allowed: Optional[int] = None
+    open_sides: Optional[int] = None
+    facing: Optional[str] = None
+    store_room: Optional[bool] = None
+    servant_room: Optional[bool] = None
     location: Optional[Location] = None
     images: Optional[List[Image]] = None
     amenities: Optional[List[str]] = None
