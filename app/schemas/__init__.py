@@ -307,3 +307,13 @@ class PropertySearchParams(BaseModel):
     geo_search: Optional[GeoSearchParams] = None
 
 
+# Paginated Response Schema for Property Listing
+class PropertyListResponse(BaseModel):
+    properties: List[Property]
+    total: int
+    page: int
+    limit: int
+    total_pages: int
+    has_next: bool
+    has_prev: bool
+
