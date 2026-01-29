@@ -194,39 +194,6 @@ async def check_phone_exists(phone_number: str):
     }
 
 
-@router.get("/find-user-by-email/{email}", status_code=status.HTTP_200_OK)
-async def find_user_by_email(email: str):
-    """
-    Find user by email address
-    Useful for Google Sign-In and other OAuth flows
-    """
-    db = await get_database()
-    user = await db.users.find_one({"email": email.lower().strip()})
-    
-    if not user:
-        return {
-            "exists": False,
-            "email": email,
-            "user": None
-        }
-    
-    # Convert ObjectId to string and remove password
-    user["_id"] = str(user["_id"])
-    user.pop("password", None)
-    
-    return {
-        "exists": True,
-        "email": email,
-        "user": {
-            "user_id": str(user["_id"]),
-            "email": user.get("email"),
-            "name": user.get("name"),
-            "phone": user.get("phone"),
-            "user_type": user.get("user_type", "buyer"),
-        }
-    }
-
-
 @router.post("/login/request-otp", response_model=LoginRequestOTPResponse, status_code=status.HTTP_200_OK)
 async def login_request_otp(request: LoginRequestOTPRequest):
     """
