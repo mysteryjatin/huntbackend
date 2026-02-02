@@ -16,11 +16,13 @@ async def create_property(property: PropertyCreate):
     property_dict = property.dict()
     property_dict["owner_id"] = ObjectId(property_dict["owner_id"])
     property_dict["posted_at"] = datetime.utcnow()
-    
+    property_dict.setdefault("listing_status", "active")
+    property_dict.setdefault("view_count", 0)
+
     # Convert nested objects
     if "images" in property_dict:
         property_dict["images"] = [img.dict() for img in property.images]
-    
+
     result = await db.properties.insert_one(property_dict)
     created_property = await db.properties.find_one({"_id": result.inserted_id})
     created_property["_id"] = str(created_property["_id"])
@@ -136,6 +138,76 @@ async def get_properties(
         total_pages=total_pages,
         has_next=has_next,
         has_prev=has_prev
+    )
+
+
+@router.get("/my-listings/{owner_id}", response_model=PropertyListResponse)
+async def get_my_listings(
+    owner_id: str,
+    status: Optional[str] = Query(
+        "all",
+        description="Filter by listing status: 'all', 'active', 'pending', or 'rejected'",
+    ),
+    page: int = Query(1, ge=1, description="Page number"),
+    limit: int = Query(12, ge=1, le=100, description="Items per page"),
+):
+    """
+    My Listing Screen: Get properties owned by a user with status filter and pagination.
+    Returns full property details plus saves (favorite count) and listing_status, view_count.
+    Tabs: All, Active, Pending, Rejected.
+    """
+    db = await get_database()
+    if not ObjectId.is_valid(owner_id):
+        raise HTTPException(status_code=400, detail="Invalid owner ID")
+
+    query = {"owner_id": ObjectId(owner_id)}
+    status_lower = (status or "all").lower()
+    if status_lower not in ("all", "active", "pending", "rejected"):
+        status_lower = "all"
+    if status_lower != "all":
+        if status_lower == "active":
+            # Properties without listing_status are treated as active
+            query["$or"] = [
+                {"listing_status": "active"},
+                {"listing_status": {"$exists": False}},
+            ]
+        else:
+            query["listing_status"] = status_lower
+
+    total = await db.properties.count_documents(query)
+    skip = (page - 1) * limit
+    cursor = (
+        db.properties.find(query)
+        .sort("posted_at", -1)
+        .skip(skip)
+        .limit(limit)
+    )
+    properties = await cursor.to_list(length=limit)
+
+    # Get saves (favorite count) for each property
+    property_ids = [ObjectId(p["_id"]) for p in properties]
+    saves_cursor = db.favorites.aggregate([
+        {"$match": {"property_id": {"$in": property_ids}}},
+        {"$group": {"_id": "$property_id", "count": {"$sum": 1}}},
+    ])
+    saves_map = {str(doc["_id"]): doc["count"] for doc in await saves_cursor.to_list(length=len(property_ids))}
+
+    for prop in properties:
+        prop["_id"] = str(prop["_id"])
+        prop["owner_id"] = str(prop["owner_id"])
+        prop["saves"] = saves_map.get(prop["_id"], 0)
+        prop.setdefault("listing_status", "active")
+        prop.setdefault("view_count", 0)
+
+    total_pages = math.ceil(total / limit) if total > 0 else 0
+    return PropertyListResponse(
+        properties=properties,
+        total=total,
+        page=page,
+        limit=limit,
+        total_pages=total_pages,
+        has_next=page < total_pages,
+        has_prev=page > 1,
     )
 
 

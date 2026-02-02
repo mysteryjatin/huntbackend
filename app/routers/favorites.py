@@ -1,8 +1,9 @@
+import math
 from fastapi import APIRouter, HTTPException, Query
-from typing import List
+from typing import List, Optional
 from bson import ObjectId
 from datetime import datetime
-from app.schemas import Favorite, FavoriteCreate
+from app.schemas import Favorite, FavoriteCreate, PropertyListResponse
 from app.database import get_database
 
 router = APIRouter()
@@ -46,6 +47,76 @@ async def create_favorite(favorite: FavoriteCreate):
     created_favorite["property_id"] = str(created_favorite["property_id"])
     created_favorite["user_id"] = str(created_favorite["user_id"])
     return created_favorite
+
+
+@router.get("/user/{user_id}/shortlist", response_model=PropertyListResponse)
+async def get_user_shortlist(
+    user_id: str,
+    transaction_type: Optional[str] = Query(
+        None,
+        description="Filter by Rent or Buy: 'rent' or 'sale'",
+    ),
+    page: int = Query(1, ge=1, description="Page number"),
+    limit: int = Query(12, ge=1, le=100, description="Items per page"),
+):
+    """
+    ShortList (Rent/Buy): Get user's shortlisted properties with full details.
+    Optionally filter by transaction_type: 'rent' (Rent) or 'sale' (Buy).
+    Returns paginated list of property objects for the ShortList screen.
+    """
+    db = await get_database()
+    if not ObjectId.is_valid(user_id):
+        raise HTTPException(status_code=400, detail="Invalid user ID")
+
+    # Get user's favorite property IDs in order (newest first)
+    cursor = db.favorites.find({"user_id": ObjectId(user_id)}).sort("created_at", -1)
+    favorites = await cursor.to_list(length=1000)
+    property_ids = [f["property_id"] for f in favorites]
+
+    if not property_ids:
+        return PropertyListResponse(
+            properties=[],
+            total=0,
+            page=page,
+            limit=limit,
+            total_pages=0,
+            has_next=False,
+            has_prev=False,
+        )
+
+    # Build property query: _id in list and optional transaction_type
+    query = {"_id": {"$in": property_ids}}
+    if transaction_type:
+        query["transaction_type"] = transaction_type.lower()
+
+    total = await db.properties.count_documents(query)
+    skip = (page - 1) * limit
+    cursor_props = (
+        db.properties.find(query)
+        .sort("posted_at", -1)
+        .skip(skip)
+        .limit(limit)
+    )
+    properties = await cursor_props.to_list(length=limit)
+
+    # Preserve shortlist order (by favorite created_at): sort by order in property_ids
+    id_order = {pid: i for i, pid in enumerate(property_ids)}
+    properties.sort(key=lambda p: id_order.get(p["_id"], 999999))
+
+    for prop in properties:
+        prop["_id"] = str(prop["_id"])
+        prop["owner_id"] = str(prop["owner_id"])
+
+    total_pages = math.ceil(total / limit) if total > 0 else 0
+    return PropertyListResponse(
+        properties=properties,
+        total=total,
+        page=page,
+        limit=limit,
+        total_pages=total_pages,
+        has_next=page < total_pages,
+        has_prev=page > 1,
+    )
 
 
 @router.get("/user/{user_id}", response_model=List[Favorite])

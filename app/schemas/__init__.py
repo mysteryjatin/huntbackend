@@ -112,6 +112,13 @@ class PropertyBase(BaseModel):
     images: List[Image] = []
     amenities: List[str] = []
 
+    # My Listing screen: listing status and view count (optional for backward compatibility)
+    listing_status: Optional[str] = Field(
+        default="active",
+        description="Listing status: 'active', 'pending', or 'rejected'",
+    )
+    view_count: Optional[int] = Field(default=0, description="Number of views (for My Listing)")
+
 
 class PropertyCreate(PropertyBase):
     owner_id: str
@@ -139,6 +146,8 @@ class PropertyUpdate(BaseModel):
     location: Optional[Location] = None
     images: Optional[List[Image]] = None
     amenities: Optional[List[str]] = None
+    listing_status: Optional[str] = Field(None, description="active, pending, or rejected")
+    view_count: Optional[int] = None
 
 
 class Property(PropertyBase):
@@ -150,6 +159,8 @@ class Property(PropertyBase):
     id: Optional[PyObjectId] = Field(None, alias="_id")
     owner_id: PyObjectId
     posted_at: datetime
+    # My Listing response: saves = count of users who favorited this property (computed, not stored)
+    saves: Optional[int] = Field(default=None, description="Favorite/save count (computed for My Listing)")
 
 
 # User Schemas
