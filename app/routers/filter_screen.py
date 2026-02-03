@@ -127,7 +127,19 @@ async def get_filter_screen_options(
     price_range = facet.get("price_range") or []
     area_range = facet.get("area_range") or []
 
-    return {
+    pr = price_range[0] if price_range else {"min": 0, "max": 0}
+    ar = area_range[0] if area_range else {"min": 0, "max": 0}
+    # Ensure valid ranges so frontend sliders never get max < min (e.g. 0–0)
+    pr_min = pr.get("min") if pr.get("min") is not None else 0
+    pr_max = pr.get("max") if pr.get("max") is not None else 0
+    if pr_max < pr_min or (pr_min == 0 and pr_max == 0):
+        pr = {"min": 0, "max": 100}  # default 0–100 Lacs for budget slider
+    ar_min = ar.get("min") if ar.get("min") is not None else 0
+    ar_max = ar.get("max") if ar.get("max") is not None else 0
+    if ar_max < ar_min or (ar_min == 0 and ar_max == 0):
+        ar = {"min": 0, "max": 5000}  # default 0–5000 sqft for area slider
+
+    payload = {
         "transaction_types": to_values(facet.get("transaction_types") or []),
         "property_categories": to_values(facet.get("property_categories") or []),
         "property_subtypes": to_values(facet.get("property_subtypes") or []),
@@ -135,18 +147,20 @@ async def get_filter_screen_options(
         "facing_options": to_values(facet.get("facing_options") or []),
         "cities": to_values(facet.get("cities") or []),
         "localities": localities_for_ui(facet.get("localities") or []),
-        "price_range": price_range[0] if price_range else {"min": 0, "max": 0},
-        "area_range": area_range[0] if area_range else {"min": 0, "max": 0},
+        "price_range": pr,
+        "area_range": ar,
         "bedrooms": to_values(facet.get("bedrooms") or []),
         "bathrooms": to_values(facet.get("bathrooms") or []),
         "store_room_options": [True, False],
         "servant_room_options": [True, False],
     }
+    # Return with success + data so frontend can use response.data or response directly
+    return {"success": True, "data": payload}
 
 
 def _empty_filter_response() -> dict:
-    """Return empty filter options when no properties exist."""
-    return {
+    """Return empty filter options when no properties exist. Ranges use safe defaults for sliders."""
+    payload = {
         "transaction_types": [],
         "property_categories": [],
         "property_subtypes": [],
@@ -154,10 +168,11 @@ def _empty_filter_response() -> dict:
         "facing_options": [],
         "cities": [],
         "localities": [],
-        "price_range": {"min": 0, "max": 0},
-        "area_range": {"min": 0, "max": 0},
+        "price_range": {"min": 0, "max": 100},
+        "area_range": {"min": 0, "max": 5000},
         "bedrooms": [],
         "bathrooms": [],
         "store_room_options": [True, False],
         "servant_room_options": [True, False],
     }
+    return {"success": True, "data": payload}
