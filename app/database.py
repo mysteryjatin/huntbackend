@@ -142,6 +142,12 @@ async def create_indexes():
     otps_collection = db.otps
     await otps_collection.create_index([("phone_number", 1)])
     await otps_collection.create_index([("expires_at", 1)], expireAfterSeconds=0)  # TTL index to auto-delete expired OTPs
+
+    # Notifications collection indexes (Notification Screen)
+    notifications_collection = db.notifications
+    await notifications_collection.create_index([("user_id", 1)])
+    await notifications_collection.create_index([("user_id", 1), ("read", 1)])
+    await notifications_collection.create_index([("created_at", -1)])
     
     print("✅ All indexes created successfully")
 

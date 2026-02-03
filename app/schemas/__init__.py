@@ -169,6 +169,10 @@ class UserBase(BaseModel):
     email: EmailStr
     phone: str
     user_type: str = Field(..., description="owner, buyer, or agent")
+    subscription_plan_id: Optional[str] = Field(
+        default="metal",
+        description="Subscription plan: metal, bronze, silver, gold, platinum",
+    )
 
 
 class UserCreate(UserBase):
@@ -180,6 +184,10 @@ class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None
     phone: Optional[str] = None
     user_type: Optional[str] = None
+    subscription_plan_id: Optional[str] = Field(
+        None,
+        description="Subscription plan: metal, bronze, silver, gold, platinum",
+    )
 
 
 class User(UserBase):
@@ -296,6 +304,51 @@ class Transaction(TransactionBase):
     id: Optional[PyObjectId] = Field(None, alias="_id")
     created_at: datetime
     completed_at: Optional[datetime] = None
+
+
+# Notification Schemas (Notification Screen)
+class NotificationBase(BaseModel):
+    user_id: str = Field(..., description="User who receives this notification")
+    type: str = Field(
+        ...,
+        description="inquiry, favorite, price_alert, system, listing_approved, etc.",
+    )
+    title: str
+    body: str = Field(..., description="Notification message/text")
+    read: bool = Field(default=False, description="Whether user has read it")
+
+
+class NotificationCreate(NotificationBase):
+    data: Optional[dict] = Field(
+        default=None,
+        description="Optional: property_id, inquiry_id, etc. for deep linking",
+    )
+
+
+class NotificationUpdate(BaseModel):
+    read: Optional[bool] = None
+
+
+class Notification(NotificationBase):
+    model_config = ConfigDict(
+        populate_by_name=True,
+        arbitrary_types_allowed=True,
+        json_encoders={ObjectId: str}
+    )
+    id: Optional[PyObjectId] = Field(None, alias="_id")
+    data: Optional[dict] = None
+    created_at: datetime
+
+
+class NotificationListResponse(BaseModel):
+    notifications: List[Notification]
+    total: int
+    page: int
+    limit: int
+    total_pages: int
+    has_next: bool
+    has_prev: bool
+    unread_count: int = Field(..., description="Total unread count for badge")
 
 
 # Search Schemas
