@@ -148,6 +148,12 @@ async def create_indexes():
     await notifications_collection.create_index([("user_id", 1)])
     await notifications_collection.create_index([("user_id", 1), ("read", 1)])
     await notifications_collection.create_index([("created_at", -1)])
+
+    # Orders collection indexes (Order History Screen)
+    orders_collection = db.orders
+    await orders_collection.create_index([("user_id", 1)])
+    await orders_collection.create_index([("user_id", 1), ("status", 1)])
+    await orders_collection.create_index([("created_at", -1)])
     
     print("✅ All indexes created successfully")
 

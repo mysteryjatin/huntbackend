@@ -380,3 +380,46 @@ class PropertyListResponse(BaseModel):
     total_pages: int
     has_next: bool
     has_prev: bool
+
+
+# Order Schemas (Order History Screen)
+class OrderBase(BaseModel):
+    user_id: str
+    plan_id: str = Field(..., description="metal, bronze, silver, gold, platinum")
+    plan_name: str = Field(..., description="Metal, Bronze, Silver, Gold, Platinum")
+    amount: float = Field(..., ge=0, description="Order amount in INR")
+    currency: str = Field(default="INR")
+    status: str = Field(
+        default="pending",
+        description="pending, success, invalid, cancelled, refunded",
+    )
+
+
+class OrderCreate(OrderBase):
+    order_number: Optional[str] = Field(None, description="Display order ref e.g. 114107135936")
+
+
+class OrderUpdate(BaseModel):
+    status: Optional[str] = None
+
+
+class Order(OrderBase):
+    model_config = ConfigDict(
+        populate_by_name=True,
+        arbitrary_types_allowed=True,
+        json_encoders={ObjectId: str}
+    )
+    id: Optional[PyObjectId] = Field(None, alias="_id")
+    order_number: Optional[str] = None
+    created_at: datetime
+    title: Optional[str] = Field(None, description="Display title for Order History card e.g. Owner-Gold -3500 / 114107135936")
+
+
+class OrderListResponse(BaseModel):
+    orders: List[Order]
+    total: int
+    page: int
+    limit: int
+    total_pages: int
+    has_next: bool
+    has_prev: bool

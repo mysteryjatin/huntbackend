@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import properties, users, reviews, inquiries, favorites, transactions, auth, filter_screen, subscription_plans, notifications
+from app.routers import properties, users, reviews, inquiries, favorites, transactions, auth, filter_screen, subscription_plans, notifications, orders, financial_calculators
 from app.database import connect_to_mongo, close_mongo_connection
 
 app = FastAPI(
@@ -29,6 +29,8 @@ app.include_router(transactions.router, prefix="/api/transactions", tags=["Trans
 app.include_router(filter_screen.router, prefix="/api/filter-screen", tags=["Filter Screen"])
 app.include_router(subscription_plans.router, prefix="/api/subscription-plans", tags=["Subscription Plans"])
 app.include_router(notifications.router, prefix="/api/notifications", tags=["Notifications"])
+app.include_router(orders.router, prefix="/api/orders", tags=["Orders"])
+app.include_router(financial_calculators.router, prefix="/api/financial-calculators", tags=["Financial Calculators"])
 
 
 @app.on_event("startup")
