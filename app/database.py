@@ -154,6 +154,28 @@ async def create_indexes():
     await orders_collection.create_index([("user_id", 1)])
     await orders_collection.create_index([("user_id", 1), ("status", 1)])
     await orders_collection.create_index([("created_at", -1)])
-    
+
+    # Home Loan applications (Home Loan Screen)
+    home_loan_collection = db.home_loan_applications
+    await home_loan_collection.create_index([("user_id", 1)])
+    await home_loan_collection.create_index([("created_at", -1)])
+    await home_loan_collection.create_index([("email", 1)])
+
+    # Property Cost calculations (Property Cost Screen)
+    property_cost_collection = db.property_cost_calculations
+    await property_cost_collection.create_index([("user_id", 1)])
+    await property_cost_collection.create_index([("created_at", -1)])
+
+    # NRI queries (NRI Center Screen)
+    nri_queries_collection = db.nri_queries
+    await nri_queries_collection.create_index([("user_id", 1)])
+    await nri_queries_collection.create_index([("created_at", -1)])
+    await nri_queries_collection.create_index([("email", 1)])
+
+    # Post Your Requirement (Requirement Screen)
+    requirements_collection = db.requirements
+    await requirements_collection.create_index([("user_id", 1)])
+    await requirements_collection.create_index([("created_at", -1)])
+
     print("✅ All indexes created successfully")
 

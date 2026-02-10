@@ -423,3 +423,175 @@ class OrderListResponse(BaseModel):
     total_pages: int
     has_next: bool
     has_prev: bool
+
+
+# Home Loan Application Schemas (Home Loan Screen)
+class HomeLoanApplicationBase(BaseModel):
+    loan_type: str = Field(
+        ...,
+        description="Home Loan, Commercial Loan, or Residential Loan",
+    )
+    name: str = Field(..., min_length=1)
+    email: EmailStr
+    phone: str = Field(..., min_length=1)
+    address: str = Field(..., min_length=1)
+
+
+class HomeLoanApplicationCreate(HomeLoanApplicationBase):
+    user_id: Optional[str] = Field(None, description="Logged-in user ID if available")
+
+
+class HomeLoanApplication(HomeLoanApplicationBase):
+    model_config = ConfigDict(
+        populate_by_name=True,
+        arbitrary_types_allowed=True,
+        json_encoders={ObjectId: str}
+    )
+    id: Optional[PyObjectId] = Field(None, alias="_id")
+    user_id: Optional[str] = None
+    status: str = Field(default="submitted", description="submitted, contacted, in_progress, approved, rejected")
+    created_at: datetime
+
+
+# Property Cost Calculator (Property Cost Screen)
+class AnnexureRowSchema(BaseModel):
+    name: str
+    price: float = Field(0, ge=0)
+    units: float = Field(0, ge=0)
+
+
+class PropertyCostCalculationBase(BaseModel):
+    developer_name: Optional[str] = None
+    project_name: Optional[str] = None
+    property_type: str = Field(
+        default="Residential",
+        description="Residential, Commercial, or Others",
+    )
+    payment_plan: Optional[str] = Field(
+        None,
+        description="Construction Link Plan, Down Payment Plan, Flexi Plan, etc.",
+    )
+    location: Optional[str] = None
+    size: Optional[str] = None
+    unit_type: str = Field(
+        default="Sqft",
+        description="Sqft, Sqyrds, or Sqmtrs",
+    )
+    annexure_i: List[AnnexureRowSchema] = Field(default_factory=list)
+    annexure_ii: List[AnnexureRowSchema] = Field(default_factory=list)
+    annexure_iii: List[AnnexureRowSchema] = Field(default_factory=list)
+
+
+class PropertyCostCalculationCreate(PropertyCostCalculationBase):
+    user_id: Optional[str] = None
+
+
+class PropertyCostCalculation(PropertyCostCalculationBase):
+    model_config = ConfigDict(
+        populate_by_name=True,
+        arbitrary_types_allowed=True,
+        json_encoders={ObjectId: str}
+    )
+    id: Optional[PyObjectId] = Field(None, alias="_id")
+    user_id: Optional[str] = None
+    grand_total: float = Field(0, ge=0)
+    created_at: datetime
+
+
+# NRI Center - NRI Query Schemas
+class NRIQueryBase(BaseModel):
+    first_name: str = Field(..., min_length=1)
+    last_name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    phone: str = Field(..., min_length=1, description="Phone number (required)")
+    state: str = Field(..., min_length=1)
+    country: str = Field(..., min_length=1)
+    message: str = Field(..., min_length=1)
+
+
+class NRIQueryCreate(NRIQueryBase):
+    user_id: Optional[str] = Field(None, description="Logged-in user ID if available")
+
+
+class NRIQuery(NRIQueryBase):
+    model_config = ConfigDict(
+        populate_by_name=True,
+        arbitrary_types_allowed=True,
+        json_encoders={ObjectId: str}
+    )
+    id: Optional[PyObjectId] = Field(None, alias="_id")
+    user_id: Optional[str] = None
+    created_at: datetime
+
+
+# Post Your Requirement - Requirement Schemas
+class RequirementBase(BaseModel):
+    # Personal details
+    iam: str = Field(..., description="Individual or Corporate")
+    name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    mobile: Optional[str] = None
+    country: Optional[str] = None
+    state: Optional[str] = None
+    resident_type: str = Field(
+        default="Resident",
+        description="Resident or Non Resident",
+    )
+
+    # Requirement intent
+    want: str = Field(
+        ...,
+        description="To Buy, To Rent, or Other Services",
+    )
+
+    # Property info
+    property_type: Optional[str] = Field(
+        default=None,
+        description="Residential, Commercial, or Agricultural",
+    )
+    option: Optional[str] = Field(
+        default=None,
+        description="House or Kothi, Builder Floor, Villa, Service Apartment, Penthouse, Studio Apartment, Flats, Duplex, Plot/Land",
+    )
+    property_state: Optional[str] = None
+    property_city: Optional[str] = None
+    locality: Optional[str] = None
+    bhk: Optional[str] = Field(
+        default=None,
+        description="1 BHK, 2 BHK, 3 BHK, 4 BHK",
+    )
+    finishing: Optional[str] = Field(
+        default=None,
+        description="Bare Shell, Semi Furnished, Fully Furnished",
+    )
+    possession: Optional[str] = Field(
+        default=None,
+        description="Ready To Move or Under Construction",
+    )
+    min_area: Optional[float] = Field(default=None, ge=0)
+    max_area: Optional[float] = Field(default=None, ge=0)
+    min_price: Optional[float] = Field(default=None, ge=0)
+    max_price: Optional[float] = Field(default=None, ge=0)
+    payment_plan: Optional[str] = Field(
+        default=None,
+        description="CLP, SPP, FLEXI",
+    )
+
+
+class RequirementCreate(RequirementBase):
+    user_id: Optional[str] = Field(None, description="Logged-in user ID if available")
+
+
+class Requirement(RequirementBase):
+    model_config = ConfigDict(
+        populate_by_name=True,
+        arbitrary_types_allowed=True,
+        json_encoders={ObjectId: str}
+    )
+    id: Optional[PyObjectId] = Field(None, alias="_id")
+    user_id: Optional[str] = None
+    status: str = Field(
+        default="submitted",
+        description="submitted, in_progress, matched, closed",
+    )
+    created_at: datetime

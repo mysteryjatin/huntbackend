@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import properties, users, reviews, inquiries, favorites, transactions, auth, filter_screen, subscription_plans, notifications, orders, financial_calculators
+from app.routers import properties, users, reviews, inquiries, favorites, transactions, auth, filter_screen, subscription_plans, notifications, orders, financial_calculators, home_loan, property_cost, nri_queries, requirements
 from app.database import connect_to_mongo, close_mongo_connection
 
 app = FastAPI(
@@ -31,6 +31,10 @@ app.include_router(subscription_plans.router, prefix="/api/subscription-plans", 
 app.include_router(notifications.router, prefix="/api/notifications", tags=["Notifications"])
 app.include_router(orders.router, prefix="/api/orders", tags=["Orders"])
 app.include_router(financial_calculators.router, prefix="/api/financial-calculators", tags=["Financial Calculators"])
+app.include_router(home_loan.router, prefix="/api/home-loan-applications", tags=["Home Loan"])
+app.include_router(property_cost.router, prefix="/api/property-cost-calculations", tags=["Property Cost"])
+app.include_router(nri_queries.router, prefix="/api/nri-queries", tags=["NRI Center"])
+app.include_router(requirements.router, prefix="/api/requirements", tags=["Requirements"])
 
 
 @app.on_event("startup")
