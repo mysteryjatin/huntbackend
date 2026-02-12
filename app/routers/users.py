@@ -5,6 +5,7 @@ from datetime import datetime
 from app.schemas import User, UserCreate, UserUpdate
 from app.database import get_database
 import hashlib
+import math
 
 router = APIRouter()
 
@@ -170,6 +171,132 @@ async def delete_user(user_id: str):
         raise HTTPException(status_code=404, detail="User not found")
     
     return None
+
+
+@router.get("/agents/search", response_model=dict)
+async def search_agents(
+    city: Optional[str] = Query(None, description="Filter by city (e.g., Delhi, Noida, Bangalore)"),
+    location: Optional[str] = Query(None, description="Search by location/locality"),
+    page: int = Query(1, ge=1, description="Page number"),
+    limit: int = Query(20, ge=1, le=100, description="Items per page")
+):
+    """
+    Search Agents - Search for real estate agents.
+    Filters users by user_type='agent' or is_real_estate_agent=true.
+    Supports filtering by city and location search.
+    """
+    db = await get_database()
+    
+    # Build query for agents
+    query = {
+        "$or": [
+            {"user_type": "agent"},
+            {"is_real_estate_agent": True}
+        ]
+    }
+    
+    # Add city filter if provided
+    if city:
+        # Case-insensitive city search (supports fields: city, address, location.city, etc.)
+        query["$or"].append({
+            "$or": [
+                {"city": {"$regex": city, "$options": "i"}},
+                {"address": {"$regex": city, "$options": "i"}},
+                {"location.city": {"$regex": city, "$options": "i"}},
+                {"dealing_in": {"$regex": city, "$options": "i"}}
+            ]
+        })
+    
+    # Add location/locality search if provided
+    if location:
+        location_query = {
+            "$or": [
+                {"address": {"$regex": location, "$options": "i"}},
+                {"locality": {"$regex": location, "$options": "i"}},
+                {"location.locality": {"$regex": location, "$options": "i"}},
+                {"city": {"$regex": location, "$options": "i"}},
+                {"dealing_in": {"$regex": location, "$options": "i"}}
+            ]
+        }
+        if "$or" in query and len(query["$or"]) > 2:
+            query["$and"] = [{"$or": query["$or"][:2]}, location_query]
+        else:
+            query.update(location_query)
+    
+    # Count total agents
+    total = await db.users.count_documents(query)
+    
+    # Calculate pagination
+    skip = (page - 1) * limit
+    
+    # Fetch agents
+    cursor = (
+        db.users.find(query)
+        .skip(skip)
+        .limit(limit)
+        .sort("created_at", -1)  # Sort by newest first
+    )
+    
+    agents = await cursor.to_list(length=limit)
+    
+    # Format response
+    formatted_agents = []
+    for agent in agents:
+        # Extract year from created_at for "operating since"
+        operating_since = None
+        if agent.get("created_at"):
+            if isinstance(agent["created_at"], datetime):
+                operating_since = str(agent["created_at"].year)
+            else:
+                # Handle string dates
+                try:
+                    operating_since = str(datetime.fromisoformat(str(agent["created_at"])).year)
+                except:
+                    operating_since = "2020"  # Default fallback
+        
+        # Get dealing_in city or use city field or default
+        dealing_in = (
+            agent.get("dealing_in") or 
+            agent.get("city") or 
+            agent.get("location", {}).get("city") or 
+            "N/A"
+        )
+        
+        # Get address or construct from available fields
+        address = (
+            agent.get("address") or
+            agent.get("location", {}).get("address") or
+            f"{agent.get('locality', '')}, {dealing_in}".strip(", ")
+        )
+        
+        formatted_agent = {
+            "_id": str(agent["_id"]),
+            "name": agent.get("name", "Agent"),
+            "email": agent.get("email", ""),
+            "phone": agent.get("phone", ""),
+            "address": address,
+            "city": agent.get("city") or dealing_in,
+            "dealing_in": dealing_in,
+            "operating_since": operating_since or "2020",
+            "user_type": agent.get("user_type", "agent"),
+            "created_at": agent.get("created_at").isoformat() if agent.get("created_at") else None
+        }
+        formatted_agents.append(formatted_agent)
+    
+    total_pages = math.ceil(total / limit) if total > 0 else 0
+    
+    return {
+        "success": True,
+        "data": {
+            "agents": formatted_agents,
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "total_pages": total_pages,
+            "has_next": page < total_pages,
+            "has_prev": page > 1
+        }
+    }
 
 
 
