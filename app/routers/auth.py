@@ -45,16 +45,15 @@ async def request_otp(request: RequestOTPRequest):
             detail="User with this phone number already exists"
         )
     
-    # Generate and send OTP
-    otp = await OTPService.send_otp(phone_number)
+    # Generate and send OTP via SMS (signup flow)
+    otp = await OTPService.send_otp(phone_number, is_login=False)
     
     # Store in database (optional, for persistence across server restarts)
     await OTPService.store_otp_in_db(phone_number, otp)
     
     return RequestOTPResponse(
-        message="OTP sent successfully",
-        phone_number=phone_number,
-        otp=otp  # Remove this in production
+        message="OTP sent successfully to your phone number",
+        phone_number=phone_number
     )
 
 
@@ -218,16 +217,15 @@ async def login_request_otp(request: LoginRequestOTPRequest):
             detail="User with this phone number not found. Please sign up first."
         )
     
-    # Generate and send OTP
-    otp = await OTPService.send_otp(phone_number)
+    # Generate and send OTP via SMS (login flow)
+    otp = await OTPService.send_otp(phone_number, is_login=True)
     
     # Store in database (optional, for persistence across server restarts)
     await OTPService.store_otp_in_db(phone_number, otp)
     
     return LoginRequestOTPResponse(
-        message="OTP sent successfully",
-        phone_number=phone_number,
-        otp=otp  # Remove this in production
+        message="OTP sent successfully to your phone number",
+        phone_number=phone_number
     )
 
 

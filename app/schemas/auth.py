@@ -9,8 +9,6 @@ class RequestOTPRequest(BaseModel):
 class RequestOTPResponse(BaseModel):
     message: str
     phone_number: str
-    # In production, don't return OTP. Only for testing.
-    otp: Optional[str] = None
 
 
 class VerifyOTPRequest(BaseModel):
@@ -49,8 +47,6 @@ class LoginRequestOTPRequest(BaseModel):
 class LoginRequestOTPResponse(BaseModel):
     message: str
     phone_number: str
-    # In production, don't return OTP. Only for testing.
-    otp: Optional[str] = None
 
 
 class LoginVerifyOTPRequest(BaseModel):
