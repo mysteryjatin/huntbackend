@@ -2,6 +2,7 @@
 Filter Screen API - Returns all filter options for the property search/filter UI.
 Used to populate dropdowns, sliders, and checkboxes on the filter screen.
 """
+import datetime
 from fastapi import APIRouter
 from typing import List, Optional
 from app.database import get_database
@@ -108,6 +109,27 @@ async def get_filter_screen_options(
                 {"$sort": {"_id": 1}},
                 {"$project": {"value": "$_id", "_id": 0}}
             ],
+            # Distinct possession status
+            "possession_status": [
+                {"$match": {"possession_status": {"$exists": True, "$ne": None, "$ne": ""}}},
+                {"$group": {"_id": "$possession_status"}},
+                {"$sort": {"_id": 1}},
+                {"$project": {"value": "$_id", "_id": 0}}
+            ],
+            # Distinct age of construction
+            "age_of_construction": [
+                {"$match": {"age_of_construction": {"$exists": True, "$ne": None, "$ne": ""}}},
+                {"$group": {"_id": "$age_of_construction"}},
+                {"$sort": {"_id": 1}},
+                {"$project": {"value": "$_id", "_id": 0}}
+            ],
+            # Distinct availability years (for dropdown)
+            "availability_years": [
+                {"$match": {"availability_year": {"$exists": True, "$ne": None}}},
+                {"$group": {"_id": "$availability_year"}},
+                {"$sort": {"_id": -1}},
+                {"$project": {"value": "$_id", "_id": 0}}
+            ],
         }}
     ]
 
@@ -139,6 +161,32 @@ async def get_filter_screen_options(
     if ar_max < ar_min or (ar_min == 0 and ar_max == 0):
         ar = {"min": 0, "max": 5000}  # default 0–5000 sqft for area slider
 
+    # Possession status options (full list for Filter screen UI)
+    possession_status_options = [
+        {"value": "under_construction", "label": "Under Construction"},
+        {"value": "ready_to_move", "label": "Ready to move"},
+    ]
+
+    # Age of construction options (full list for Filter screen UI)
+    age_of_construction_options = [
+        {"value": "new_construction", "label": "New Construction"},
+        {"value": "less_than_5_years", "label": "Less than 5 Years"},
+        {"value": "5_to_10_years", "label": "5 to 10 Years"},
+        {"value": "10_to_15_years", "label": "10 to 15 Years"},
+        {"value": "15_to_20_years", "label": "15 to 20 Years"},
+        {"value": "15_to_20_plus_years", "label": "15 to 20+ Years"},
+    ]
+
+    # Availability: months 1-12 (always), years from DB or default next 6 years
+    current_year = datetime.datetime.utcnow().year
+    availability_years_data = to_values(facet.get("availability_years") or [])
+    availability_years = sorted(availability_years_data, reverse=True) if availability_years_data else [
+        current_year + i for i in range(0, 6)
+    ]
+    availability_months = [
+        {"value": i, "label": datetime.datetime(2000, i, 1).strftime("%B")} for i in range(1, 13)
+    ]
+
     payload = {
         "transaction_types": to_values(facet.get("transaction_types") or []),
         "property_categories": to_values(facet.get("property_categories") or []),
@@ -153,6 +201,10 @@ async def get_filter_screen_options(
         "bathrooms": to_values(facet.get("bathrooms") or []),
         "store_room_options": [True, False],
         "servant_room_options": [True, False],
+        "possession_status_options": possession_status_options,
+        "availability_months": availability_months,
+        "availability_years": availability_years,
+        "age_of_construction_options": age_of_construction_options,
     }
     # Return with success + data so frontend can use response.data or response directly
     return {"success": True, "data": payload}
@@ -160,6 +212,7 @@ async def get_filter_screen_options(
 
 def _empty_filter_response() -> dict:
     """Return empty filter options when no properties exist. Ranges use safe defaults for sliders."""
+    current_year = datetime.datetime.utcnow().year
     payload = {
         "transaction_types": [],
         "property_categories": [],
@@ -174,5 +227,21 @@ def _empty_filter_response() -> dict:
         "bathrooms": [],
         "store_room_options": [True, False],
         "servant_room_options": [True, False],
+        "possession_status_options": [
+            {"value": "under_construction", "label": "Under Construction"},
+            {"value": "ready_to_move", "label": "Ready to move"},
+        ],
+        "availability_months": [
+            {"value": i, "label": datetime.datetime(2000, i, 1).strftime("%B")} for i in range(1, 13)
+        ],
+        "availability_years": [current_year + i for i in range(0, 6)],
+        "age_of_construction_options": [
+            {"value": "new_construction", "label": "New Construction"},
+            {"value": "less_than_5_years", "label": "Less than 5 Years"},
+            {"value": "5_to_10_years", "label": "5 to 10 Years"},
+            {"value": "10_to_15_years", "label": "10 to 15 Years"},
+            {"value": "15_to_20_years", "label": "15 to 20 Years"},
+            {"value": "15_to_20_plus_years", "label": "15 to 20+ Years"},
+        ],
     }
     return {"success": True, "data": payload}

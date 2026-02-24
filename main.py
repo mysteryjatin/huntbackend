@@ -3,7 +3,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from app.routers import properties, users, reviews, inquiries, favorites, transactions, auth, filter_screen, subscription_plans, notifications, orders, financial_calculators, home_loan, property_cost, nri_queries, requirements, upload
+from app.routers import properties, users, reviews, inquiries, favorites, transactions, auth, filter_screen, subscription_plans, notifications, orders, financial_calculators, home_loan, property_cost, nri_queries, requirements, upload, home as home_router
 from app.database import connect_to_mongo, close_mongo_connection
 
 app = FastAPI(
@@ -39,6 +39,7 @@ app.include_router(property_cost.router, prefix="/api/property-cost-calculations
 app.include_router(nri_queries.router, prefix="/api/nri-queries", tags=["NRI Center"])
 app.include_router(requirements.router, prefix="/api/requirements", tags=["Requirements"])
 app.include_router(upload.router, prefix="/api/upload", tags=["Upload"])
+app.include_router(home_router.router, prefix="/api/home", tags=["Home"])
 
 # Serve uploaded images at /uploads/
 uploads_dir = Path(__file__).resolve().parent / "uploads"

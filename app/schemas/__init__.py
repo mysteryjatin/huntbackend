@@ -107,6 +107,31 @@ class PropertyBase(BaseModel):
         description="Whether the property has a servant room (Yes/No in UI)",
     )
 
+    # Possession & availability (Filter screen)
+    possession_status: Optional[str] = Field(
+        default=None,
+        description="Possession status: 'under_construction' or 'ready_to_move'",
+    )
+    availability_month: Optional[int] = Field(
+        default=None,
+        ge=1,
+        le=12,
+        description="Availability month (1-12) for filter",
+    )
+    availability_year: Optional[int] = Field(
+        default=None,
+        ge=2000,
+        le=2100,
+        description="Availability year (e.g. 2025) for filter",
+    )
+    age_of_construction: Optional[str] = Field(
+        default=None,
+        description=(
+            "Age of construction: 'new_construction', 'less_than_5_years', "
+            "'5_to_10_years', '10_to_15_years', '15_to_20_years', '15_to_20_plus_years'"
+        ),
+    )
+
     # Location & media
     location: Location
     images: List[Image] = []
@@ -143,6 +168,10 @@ class PropertyUpdate(BaseModel):
     facing: Optional[str] = None
     store_room: Optional[bool] = None
     servant_room: Optional[bool] = None
+    possession_status: Optional[str] = None
+    availability_month: Optional[int] = Field(None, ge=1, le=12)
+    availability_year: Optional[int] = Field(None, ge=2000, le=2100)
+    age_of_construction: Optional[str] = None
     location: Optional[Location] = None
     images: Optional[List[Image]] = None
     amenities: Optional[List[str]] = None
@@ -307,26 +336,43 @@ class Transaction(TransactionBase):
 
 
 # Notification Schemas (Notification Screen)
+# UI tabs: All | Property Alerts | Plan. Types map to tabs for filtering.
 class NotificationBase(BaseModel):
     user_id: str = Field(..., description="User who receives this notification")
     type: str = Field(
         ...,
-        description="inquiry, favorite, price_alert, system, listing_approved, etc.",
+        description=(
+            "Notification type for filtering: "
+            "property_alerts tab: price_drop, new_listing, plot_available, price_alert, favorite, inquiry, listing_approved; "
+            "plan tab: subscription, plan; "
+            "others: system, etc."
+        ),
     )
-    title: str
-    body: str = Field(..., description="Notification message/text")
-    read: bool = Field(default=False, description="Whether user has read it")
-
-
-class NotificationCreate(NotificationBase):
+    title: str = Field(..., description="Notification title (e.g. 'Price dropped by $20k!')")
+    body: str = Field(..., description="Notification message/description shown below title")
+    read: bool = Field(default=False, description="Whether user has read it (unread = show green dot)")
+    action_text: Optional[str] = Field(
+        default=None,
+        description="Button label (e.g. 'View Details >', 'Book Visit >', 'Renew Now >')",
+    )
+    action_url: Optional[str] = Field(
+        default=None,
+        description="Deep link or route when user taps the action button",
+    )
     data: Optional[dict] = Field(
         default=None,
         description="Optional: property_id, inquiry_id, etc. for deep linking",
     )
 
 
+class NotificationCreate(NotificationBase):
+    pass
+
+
 class NotificationUpdate(BaseModel):
     read: Optional[bool] = None
+    action_text: Optional[str] = None
+    action_url: Optional[str] = None
 
 
 class Notification(NotificationBase):
@@ -336,7 +382,6 @@ class Notification(NotificationBase):
         json_encoders={ObjectId: str}
     )
     id: Optional[PyObjectId] = Field(None, alias="_id")
-    data: Optional[dict] = None
     created_at: datetime
 
 

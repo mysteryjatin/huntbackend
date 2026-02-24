@@ -49,6 +49,10 @@ async def get_properties(
     max_area: Optional[float] = Query(None, ge=0, description="Maximum area in sqft"),
     store_room: Optional[bool] = Query(None, description="Filter by store room availability"),
     servant_room: Optional[bool] = Query(None, description="Filter by servant room availability"),
+    possession_status: Optional[str] = Query(None, description="Possession: 'under_construction' or 'ready_to_move'"),
+    availability_month: Optional[int] = Query(None, ge=1, le=12, description="Availability month (1-12)"),
+    availability_year: Optional[int] = Query(None, ge=2000, le=2100, description="Availability year (e.g. 2025)"),
+    age_of_construction: Optional[str] = Query(None, description="Age: 'new_construction', 'less_than_5_years', '5_to_10_years', '10_to_15_years', '15_to_20_years', '15_to_20_plus_years'"),
     sort_by: Optional[str] = Query("posted_at", description="Sort field: 'posted_at', 'price', 'area_sqft'"),
     sort_order: Optional[str] = Query("desc", description="Sort order: 'asc' or 'desc'")
 ):
@@ -104,7 +108,23 @@ async def get_properties(
         query["store_room"] = store_room
     if servant_room is not None:
         query["servant_room"] = servant_room
-    
+
+    # Possession status
+    if possession_status:
+        query["possession_status"] = possession_status.strip().lower()
+
+    # Availability (month and/or year)
+    if availability_month is not None or availability_year is not None:
+        query["$and"] = query.get("$and", [])
+        if availability_month is not None:
+            query["$and"].append({"availability_month": availability_month})
+        if availability_year is not None:
+            query["$and"].append({"availability_year": availability_year})
+
+    # Age of construction
+    if age_of_construction:
+        query["age_of_construction"] = age_of_construction.strip().lower()
+
     # Calculate skip for pagination
     skip = (page - 1) * limit
     

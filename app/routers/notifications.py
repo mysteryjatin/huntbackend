@@ -1,6 +1,7 @@
 """
 Notification Screen API - List and manage user notifications.
-Supports pagination, unread filter, and mark-as-read.
+UI: tabs All | Property Alerts | Plan; cards with title, body, action button; swipe-to-delete.
+Supports: tab filter, pagination, unread count, mark-as-read, delete by id.
 """
 import math
 from fastapi import APIRouter, HTTPException, Query
@@ -17,10 +18,22 @@ from app.database import get_database
 
 router = APIRouter()
 
+# Tab "Property Alerts": types that show in Property Alerts tab
+PROPERTY_ALERT_TYPES = {
+    "price_drop", "new_listing", "plot_available", "price_alert",
+    "favorite", "inquiry", "listing_approved", "property_alert",
+}
+# Tab "Plan": types that show in Plan tab
+PLAN_TYPES = {"subscription", "plan", "plan_expiring"}
+
 
 @router.get("/user/{user_id}", response_model=NotificationListResponse)
 async def get_user_notifications(
     user_id: str,
+    tab: Optional[str] = Query(
+        "all",
+        description="Tab filter: 'all', 'property_alerts', or 'plan'",
+    ),
     read: Optional[bool] = Query(
         None,
         description="Filter by read status: true (read only), false (unread only), omit for all",
@@ -28,14 +41,14 @@ async def get_user_notifications(
     type_filter: Optional[str] = Query(
         None,
         alias="type",
-        description="Filter by notification type: inquiry, favorite, price_alert, system, etc.",
+        description="Filter by exact notification type (ignored when tab is set)",
     ),
     page: int = Query(1, ge=1, description="Page number"),
     limit: int = Query(20, ge=1, le=100, description="Items per page"),
 ):
     """
-    Notification Screen: Get paginated list of notifications for a user.
-    Returns unread_count for badge. Optional filters: read (unread/read), type.
+    Notification Screen: Get paginated list for a user.
+    Tabs: all | property_alerts | plan. Returns unread_count for badge.
     """
     db = await get_database()
     if not ObjectId.is_valid(user_id):
@@ -44,8 +57,14 @@ async def get_user_notifications(
     query = {"user_id": ObjectId(user_id)}
     if read is not None:
         query["read"] = read
-    if type_filter:
+
+    tab_lower = (tab or "all").strip().lower()
+    if type_filter and tab_lower == "all":
         query["type"] = type_filter.strip().lower()
+    elif tab_lower == "property_alerts":
+        query["type"] = {"$in": list(PROPERTY_ALERT_TYPES)}
+    elif tab_lower == "plan":
+        query["type"] = {"$in": list(PLAN_TYPES)}
 
     total = await db.notifications.count_documents(query)
     unread_count = await db.notifications.count_documents(
