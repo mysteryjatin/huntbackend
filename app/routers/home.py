@@ -85,15 +85,20 @@ async def get_home_sections(
         None,
         description="Optional: user ID to compute is_favorite per property",
     ),
+    transaction_type: Optional[str] = Query(
+        "all",
+        description="Filter by tab: all | buy | rent | projects | residential | commercial",
+    ),
     limit: int = Query(SECTION_LIMIT, ge=1, le=20, description="Max properties per section"),
 ):
     """
     Home Screen: Get sectioned data for Top Selling Projects, Recommend Your Location, and Property for Rent.
-    Each section has a title and list of properties with id, title, location, price, price_display, image_url, etc.
+    transaction_type: all | buy (sale only) | rent (rent only) | projects (under_construction) | residential | commercial.
     """
     db = await get_database()
     base_url = "http://72.61.237.178:8000"  # For relative image URLs; could be from config
     city_filter = (city or DEFAULT_CITY).strip() or DEFAULT_CITY
+    filter_type = (transaction_type or "all").strip().lower()
 
     # Favorite IDs for user (optional)
     favorite_ids = set()
@@ -111,45 +116,91 @@ async def get_home_sections(
         for d in doc_list:
             d["is_favorite"] = d.get("_id") in favorite_ids
 
-    # 1) Top Selling Projects in {city} — sale, in city, recent
-    top_match = {
-        "transaction_type": "sale",
-        "location.city": {"$regex": city_filter, "$options": "i"},
-    }
-    top_cursor = (
-        db.properties.find(top_match)
-        .sort("posted_at", -1)
-        .limit(limit)
-    )
-    top_props = await top_cursor.to_list(length=limit)
-    top_selling = [_property_card_doc(p, base_url) for p in top_props]
-    add_favorite(top_selling)
+    # Extra filters for category tabs
+    category_filter = {}  # e.g. {"property_category": "residential"}
+    if filter_type == "residential":
+        category_filter["property_category"] = {"$regex": r"^residential$", "$options": "i"}
+    elif filter_type == "commercial":
+        category_filter["property_category"] = {"$regex": r"^commercial$", "$options": "i"}
 
-    # 2) Recommend Your Location — sale, same city or no city filter, different order (e.g. by price desc or views)
-    rec_match = {"transaction_type": "sale"}
-    rec_cursor = (
-        db.properties.find(rec_match)
-        .sort("posted_at", -1)
-        .limit(limit)
-    )
-    rec_props = await rec_cursor.to_list(length=limit)
-    recommend = [_property_card_doc(p, base_url) for p in rec_props]
-    add_favorite(recommend)
+    # projects = under_construction only (single section)
+    if filter_type == "projects":
+        match = {"possession_status": {"$regex": r"under_construction", "$options": "i"}, **category_filter}
+        proj_cursor = (
+            db.properties.find(match)
+            .sort("posted_at", -1)
+            .limit(limit)
+        )
+        proj_props = await proj_cursor.to_list(length=limit)
+        top_selling = [_property_card_doc(p, base_url) for p in proj_props]
+        add_favorite(top_selling)
+        return {
+            "success": True,
+            "data": {
+                "transaction_type": filter_type,
+                "top_selling_projects": {
+                    "section_title": "Projects",
+                    "city": city_filter,
+                    "properties": top_selling,
+                },
+                "recommend_your_location": {"section_title": "Recommend Your Location", "properties": []},
+                "property_for_rent": {"section_title": "Property for Rent", "properties": []},
+            },
+        }
 
-    # 3) Property for Rent
-    rent_match = {"transaction_type": "rent"}
-    rent_cursor = (
-        db.properties.find(rent_match)
-        .sort("posted_at", -1)
-        .limit(limit)
-    )
-    rent_props = await rent_cursor.to_list(length=limit)
-    for_rent = [_property_card_doc(p, base_url) for p in rent_props]
-    add_favorite(for_rent)
+    # all | buy | rent (optionally with residential/commercial when filter is residential/commercial)
+    show_sale = filter_type not in ("rent",)
+    show_rent = filter_type not in ("buy",)
+
+    # For "residential" / "commercial" we show both sale and rent filtered by category
+    if filter_type in ("residential", "commercial"):
+        show_sale = True
+        show_rent = True
+
+    top_selling = []
+    recommend = []
+    for_rent = []
+
+    if show_sale:
+        top_match = {
+            "transaction_type": "sale",
+            "location.city": {"$regex": city_filter, "$options": "i"},
+            **category_filter,
+        }
+        top_cursor = (
+            db.properties.find(top_match)
+            .sort("posted_at", -1)
+            .limit(limit)
+        )
+        top_props = await top_cursor.to_list(length=limit)
+        top_selling = [_property_card_doc(p, base_url) for p in top_props]
+        add_favorite(top_selling)
+
+        rec_match = {"transaction_type": "sale", **category_filter}
+        rec_cursor = (
+            db.properties.find(rec_match)
+            .sort("posted_at", -1)
+            .limit(limit)
+        )
+        rec_props = await rec_cursor.to_list(length=limit)
+        recommend = [_property_card_doc(p, base_url) for p in rec_props]
+        add_favorite(recommend)
+
+    if show_rent:
+        rent_match = {"transaction_type": "rent", **category_filter}
+        rent_cursor = (
+            db.properties.find(rent_match)
+            .sort("posted_at", -1)
+            .limit(limit)
+        )
+        rent_props = await rent_cursor.to_list(length=limit)
+        for_rent = [_property_card_doc(p, base_url) for p in rent_props]
+        add_favorite(for_rent)
 
     return {
         "success": True,
         "data": {
+            "transaction_type": filter_type,
             "top_selling_projects": {
                 "section_title": f"Top Selling Projects in {city_filter}",
                 "city": city_filter,
