@@ -2,8 +2,9 @@
 Subscription Plans API - Returns all subscription plan tiers for the Subscription Plan Screen.
 Plans: Metal (Free), Bronze, Silver, Gold, Platinum.
 Optionally pass user_id to get current_plan_id and is_current on each plan.
+After spin: Platinum = Active Plan, rest = Downgrade. Use POST /activate-spin-reward to set user's plan to Platinum.
 """
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Body
 from typing import List, Optional
 from bson import ObjectId
 from app.database import get_database
@@ -123,7 +124,7 @@ SUBSCRIPTION_PLANS = [
 
 
 def _get_plans_with_current(current_plan_id: Optional[str]) -> List[dict]:
-    """Return plan list, setting is_current and button_label for the user's plan."""
+    """Return plan list: current plan = 'Active Plan', all others = 'Downgrade' (e.g. after spin, Platinum = Active, rest = Downgrade)."""
     plans = []
     valid_ids = {p["id"] for p in SUBSCRIPTION_PLANS}
     current = (current_plan_id or "metal").lower().strip()
@@ -134,6 +135,8 @@ def _get_plans_with_current(current_plan_id: Optional[str]) -> List[dict]:
         plan["is_current"] = plan["id"] == current
         if plan["is_current"]:
             plan["button_label"] = "Active Plan"
+        else:
+            plan["button_label"] = "Downgrade"
         plans.append(plan)
     return plans
 
@@ -170,5 +173,38 @@ async def get_subscription_plans(
                 "secure_note": "Secure payment   |   Cancel anytime.",
                 "help_text": "Need help? Contact our support team.",
             },
+        },
+    }
+
+
+# Plan ID granted when user wins the spin (Platinum)
+SPIN_REWARD_PLAN_ID = "platinum"
+
+
+@router.post("/activate-spin-reward")
+async def activate_spin_reward(
+    user_id: str = Body(..., embed=True, description="Logged-in user ID to activate Platinum plan from spin"),
+):
+    """
+    Activate spin reward: set the user's subscription plan to Platinum (e.g. after spin wheel lands on Platinum).
+    Subscription plans screen will then show Platinum as Active Plan and rest as Downgrade.
+    """
+    if not user_id or not user_id.strip():
+        raise HTTPException(status_code=400, detail="user_id is required")
+    if not ObjectId.is_valid(user_id.strip()):
+        raise HTTPException(status_code=400, detail="Invalid user ID")
+    db = await get_database()
+    uid = ObjectId(user_id.strip())
+    result = await db.users.update_one(
+        {"_id": uid},
+        {"$set": {"subscription_plan_id": SPIN_REWARD_PLAN_ID}},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {
+        "success": True,
+        "data": {
+            "current_plan_id": SPIN_REWARD_PLAN_ID,
+            "message": "Platinum plan activated (spin reward).",
         },
     }
