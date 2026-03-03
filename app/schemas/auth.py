@@ -1,4 +1,4 @@
-wfrom pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, Field, EmailStr
 from typing import Optional
 
 
