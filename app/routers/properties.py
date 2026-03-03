@@ -234,12 +234,14 @@ async def get_my_listings(
 @router.get("/search", response_model=List[Property])
 async def search_properties(
     text: Optional[str] = None,
+    search: Optional[str] = None,
     longitude: Optional[float] = None,
     latitude: Optional[float] = None,
     max_distance: int = Query(5000, ge=1),
     transaction_type: Optional[str] = None,
     min_price: Optional[float] = None,
     max_price: Optional[float] = None,
+    bedrooms: Optional[int] = None,
     min_bedrooms: Optional[int] = None,
     min_bathrooms: Optional[int] = None,
     skip: int = Query(0, ge=0),
@@ -250,8 +252,9 @@ async def search_properties(
     query = {}
     
     # Text search
-    if text:
-        query["$text"] = {"$search": text}
+    effective_text = search or text
+    if effective_text:
+        query["$text"] = {"$search": effective_text}
     
     # Geo search
     if longitude is not None and latitude is not None:
@@ -274,7 +277,9 @@ async def search_properties(
             query["price"]["$gte"] = min_price
         if max_price is not None:
             query["price"]["$lte"] = max_price
-    if min_bedrooms is not None:
+    if bedrooms is not None:
+        query["bedrooms"] = bedrooms
+    elif min_bedrooms is not None:
         query["bedrooms"] = {"$gte": min_bedrooms}
     if min_bathrooms is not None:
         query["bathrooms"] = {"$gte": min_bathrooms}
