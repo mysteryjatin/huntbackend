@@ -198,6 +198,10 @@ class UserBase(BaseModel):
     email: EmailStr
     phone: str
     user_type: str = Field(..., description="owner, buyer, or agent")
+    avatar_url: Optional[str] = Field(
+        default=None,
+        description="Optional profile image URL (e.g. /uploads/abc.png or full https URL)",
+    )
     subscription_plan_id: Optional[str] = Field(
         default="metal",
         description="Subscription plan: metal, bronze, silver, gold, platinum",
@@ -213,6 +217,7 @@ class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None
     phone: Optional[str] = None
     user_type: Optional[str] = None
+    avatar_url: Optional[str] = None
     subscription_plan_id: Optional[str] = Field(
         None,
         description="Subscription plan: metal, bronze, silver, gold, platinum",
