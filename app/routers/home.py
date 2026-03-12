@@ -96,7 +96,7 @@ async def get_home_sections(
     transaction_type: all | buy (sale only) | rent (rent only) | projects (under_construction) | residential | commercial.
     """
     db = await get_database()
-    base_url = "http://72.61.237.178:8000"  # For relative image URLs; could be from config
+    base_url = "https://huntindiainfra.com"  # HTTPS so mixed-content is avoided on frontend
     city_filter = (city or DEFAULT_CITY).strip() or DEFAULT_CITY
     filter_type = (transaction_type or "all").strip().lower()
 
