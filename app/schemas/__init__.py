@@ -216,6 +216,8 @@ class UserUpdate(BaseModel):
     name: Optional[str] = None
     email: Optional[EmailStr] = None
     phone: Optional[str] = None
+    alt_phone: Optional[str] = Field(None, description="Alternate mobile number")
+    aadhar_number: Optional[str] = Field(None, description="Aadhar identification number")
     user_type: Optional[str] = None
     avatar_url: Optional[str] = None
     subscription_plan_id: Optional[str] = Field(
