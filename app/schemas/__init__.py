@@ -196,7 +196,12 @@ class Property(PropertyBase):
 class UserBase(BaseModel):
     name: str
     email: EmailStr
-    phone: str
+    # Phone is optional here so that Google sign-in users can be
+    # created without a phone and attach/verify it later via OTP.
+    phone: Optional[str] = Field(
+        default="",
+        description="Primary phone number. May be empty for social-login users until verified.",
+    )
     user_type: str = Field(..., description="owner, buyer, or agent")
     avatar_url: Optional[str] = Field(
         default=None,
