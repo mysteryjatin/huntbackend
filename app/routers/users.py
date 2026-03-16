@@ -20,12 +20,20 @@ async def create_user(user: UserCreate):
     """Create a new user"""
     db = await get_database()
     
+    user_dict = user.dict()
+    
+    # Normalize/clean optional phone: if it's empty, don't store it at all.
+    # This avoids hitting the unique index on phone with the same empty value ("")
+    # for every social-login user who hasn't added a phone yet.
+    phone_value = user_dict.get("phone")
+    if not phone_value:
+        user_dict.pop("phone", None)
+
     # Check if email already exists
-    existing_user = await db.users.find_one({"email": user.email})
+    existing_user = await db.users.find_one({"email": user_dict["email"]})
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
     
-    user_dict = user.dict()
     user_dict["password"] = hash_password(user_dict.pop("password"))
     user_dict["created_at"] = datetime.utcnow()
     
