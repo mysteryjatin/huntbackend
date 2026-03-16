@@ -105,14 +105,13 @@ async def create_indexes():
         # Don't fail startup just because cleanup failed; log and continue
         print(f"⚠️ Error normalizing phone values before index creation: {e}")
     
-    # Handle phone index - make it unique ONLY for non-empty strings
-    # This allows many social-login users without phone, while keeping
-    # verified phone numbers unique.
+    # Handle phone index - make it unique.
+    # Because we have cleaned null/empty values and we never store phone
+    # for Google users until it is verified, a simple unique index is safe.
     try:
         await users_collection.create_index(
             [("phone", 1)],
             unique=True,
-            partialFilterExpression={"phone": {"$type": "string", "$ne": ""}},
         )
     except Exception as e:
         if "IndexKeySpecsConflict" in str(e) or "already exists" in str(e).lower():
@@ -124,7 +123,6 @@ async def create_indexes():
             await users_collection.create_index(
                 [("phone", 1)],
                 unique=True,
-                partialFilterExpression={"phone": {"$type": "string", "$ne": ""}},
             )
         else:
             raise
