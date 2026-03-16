@@ -83,23 +83,49 @@ async def create_indexes():
             # Drop existing index and recreate
             try:
                 await users_collection.drop_index("email_1")
-            except:
+            except Exception:
                 pass
             await users_collection.create_index([("email", 1)], unique=True)
         else:
             raise
     
-    # Handle phone index - drop existing if it conflicts (this is the problematic one)
+    # Normalize any bad/legacy phone values BEFORE enforcing uniqueness
+    # - Remove phone field where it's null
     try:
-        await users_collection.create_index([("phone", 1)], unique=True)  # Phone must be unique for OTP signup
+        await users_collection.update_many(
+            {"phone": None},
+            {"$unset": {"phone": ""}},
+        )
+        # - Remove phone field where it's an empty string
+        await users_collection.update_many(
+            {"phone": ""},
+            {"$unset": {"phone": ""}},
+        )
+    except Exception as e:
+        # Don't fail startup just because cleanup failed; log and continue
+        print(f"⚠️ Error normalizing phone values before index creation: {e}")
+    
+    # Handle phone index - make it unique ONLY for non-empty strings
+    # This allows many social-login users without phone, while keeping
+    # verified phone numbers unique.
+    try:
+        await users_collection.create_index(
+            [("phone", 1)],
+            unique=True,
+            partialFilterExpression={"phone": {"$type": "string", "$ne": ""}},
+        )
     except Exception as e:
         if "IndexKeySpecsConflict" in str(e) or "already exists" in str(e).lower():
-            # Drop existing index and recreate
+            # Drop existing index and recreate with correct definition
             try:
                 await users_collection.drop_index("phone_1")
-            except:
+            except Exception:
                 pass
-            await users_collection.create_index([("phone", 1)], unique=True)
+            await users_collection.create_index(
+                [("phone", 1)],
+                unique=True,
+                partialFilterExpression={"phone": {"$type": "string", "$ne": ""}},
+            )
         else:
             raise
     
