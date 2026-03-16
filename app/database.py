@@ -105,27 +105,27 @@ async def create_indexes():
         # Don't fail startup just because cleanup failed; log and continue
         print(f"⚠️ Error normalizing phone values before index creation: {e}")
     
-    # Handle phone index - make it unique.
-    # Because we have cleaned null/empty values and we never store phone
-    # for Google users until it is verified, a simple unique index is safe.
+    # Handle phone index:
+    # - We want phone to be unique WHEN PRESENT (for OTP users),
+    # - but allow many users with no phone (Google sign-in before verification).
+    # So we use a partial unique index that only applies when `phone` exists.
     try:
+        # Proactively drop any existing phone_1 index so we can recreate
+        try:
+            await users_collection.drop_index("phone_1")
+        except Exception:
+            # It's fine if the index doesn't exist yet
+            pass
+
         await users_collection.create_index(
             [("phone", 1)],
             unique=True,
+            partialFilterExpression={"phone": {"$exists": True}},
         )
     except Exception as e:
-        if "IndexKeySpecsConflict" in str(e) or "already exists" in str(e).lower():
-            # Drop existing index and recreate with correct definition
-            try:
-                await users_collection.drop_index("phone_1")
-            except Exception:
-                pass
-            await users_collection.create_index(
-                [("phone", 1)],
-                unique=True,
-            )
-        else:
-            raise
+        # If something goes wrong creating the index, log and re-raise
+        print(f"❌ Error creating phone index: {e}")
+        raise
     
     # Reviews collection indexes
     reviews_collection = db.reviews
