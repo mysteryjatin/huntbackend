@@ -64,4 +64,26 @@ class LoginVerifyOTPResponse(BaseModel):
     token: Optional[str] = None  # For future JWT implementation
 
 
+class ProfilePhoneRequestOTPRequest(BaseModel):
+    user_id: str = Field(..., description="Existing user ID")
+    phone_number: str = Field(..., description="Phone number with country code (e.g., +918881675561)")
+
+
+class ProfilePhoneRequestOTPResponse(BaseModel):
+    message: str
+    phone_number: str
+
+
+class ProfilePhoneVerifyOTPRequest(BaseModel):
+    user_id: str = Field(..., description="Existing user ID")
+    phone_number: str = Field(..., description="Phone number with country code")
+    otp: str = Field(..., min_length=4, max_length=6, description="OTP code")
+
+
+class ProfilePhoneVerifyOTPResponse(BaseModel):
+    message: str
+    phone_number: str
+    user_id: str
+
+
 

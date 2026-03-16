@@ -2,11 +2,20 @@ from fastapi import APIRouter, HTTPException, status
 from bson import ObjectId
 from datetime import datetime
 from app.schemas.auth import (
-    RequestOTPRequest, RequestOTPResponse,
-    VerifyOTPRequest, VerifyOTPResponse,
-    SignupRequest, SignupResponse,
-    LoginRequestOTPRequest, LoginRequestOTPResponse,
-    LoginVerifyOTPRequest, LoginVerifyOTPResponse
+    RequestOTPRequest,
+    RequestOTPResponse,
+    VerifyOTPRequest,
+    VerifyOTPResponse,
+    SignupRequest,
+    SignupResponse,
+    LoginRequestOTPRequest,
+    LoginRequestOTPResponse,
+    LoginVerifyOTPRequest,
+    LoginVerifyOTPResponse,
+    ProfilePhoneRequestOTPRequest,
+    ProfilePhoneRequestOTPResponse,
+    ProfilePhoneVerifyOTPRequest,
+    ProfilePhoneVerifyOTPResponse,
 )
 from app.schemas import User
 from app.services.otp_service import OTPService
@@ -271,6 +280,125 @@ async def login_verify_otp(request: LoginVerifyOTPRequest):
         email=user.get("email"),
         user_type=user.get("user_type", "buyer"),
         token=None  # For future JWT implementation
+    )
+
+
+@router.post(
+    "/profile/phone/request-otp",
+    response_model=ProfilePhoneRequestOTPResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def profile_phone_request_otp(request: ProfilePhoneRequestOTPRequest):
+    """
+    Request OTP to attach/verify a phone number for an existing user (profile flow)
+    """
+    phone_number = request.phone_number.strip()
+    user_id = request.user_id.strip()
+
+    if not phone_number.startswith("+") or len(phone_number) < 10:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid phone number format. Please include country code (e.g., +918881675561)",
+        )
+
+    db = await get_database()
+
+    # Validate user ID and ensure user exists
+    try:
+        user_obj_id = ObjectId(user_id)
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid user ID",
+        )
+
+    existing_user = await db.users.find_one({"_id": user_obj_id})
+    if not existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    # Ensure this phone is not already used by another account
+    phone_owner = await db.users.find_one({"phone": phone_number})
+    if phone_owner and str(phone_owner["_id"]) != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This phone number is already used by another account",
+        )
+
+    otp = await OTPService.send_otp(phone_number, is_login=False)
+    await OTPService.store_otp_in_db(phone_number, otp)
+
+    return ProfilePhoneRequestOTPResponse(
+        message="OTP sent successfully to your phone number",
+        phone_number=phone_number,
+    )
+
+
+@router.post(
+    "/profile/phone/verify-otp",
+    response_model=ProfilePhoneVerifyOTPResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def profile_phone_verify_otp(request: ProfilePhoneVerifyOTPRequest):
+    """
+    Verify OTP for profile phone attach and persist phone on user
+    """
+    phone_number = request.phone_number.strip()
+    otp = request.otp.strip()
+    user_id = request.user_id.strip()
+
+    # Verify OTP (try database first, fallback to memory)
+    verified = await OTPService.verify_otp_from_db(phone_number, otp)
+    if not verified:
+        verified = await OTPService.verify_otp(phone_number, otp)
+
+    if not verified:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired OTP. Please request a new OTP.",
+        )
+
+    db = await get_database()
+
+    try:
+        user_obj_id = ObjectId(user_id)
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid user ID",
+        )
+
+    user = await db.users.find_one({"_id": user_obj_id})
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    # Ensure unique phone again before updating
+    phone_owner = await db.users.find_one({"phone": phone_number})
+    if phone_owner and str(phone_owner["_id"]) != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This phone number is already used by another account",
+        )
+
+    # Update user with new phone
+    await db.users.update_one(
+        {"_id": user_obj_id},
+        {"$set": {"phone": phone_number}},
+    )
+
+    # Clear OTP after success
+    await OTPService.clear_otp_from_db(phone_number)
+    await OTPService.clear_otp(phone_number)
+
+    return ProfilePhoneVerifyOTPResponse(
+        message="Phone number verified and saved successfully",
+        phone_number=phone_number,
+        user_id=user_id,
     )
 
 

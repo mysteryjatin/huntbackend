@@ -239,6 +239,8 @@ async def search_properties(
     latitude: Optional[float] = None,
     max_distance: int = Query(5000, ge=1),
     transaction_type: Optional[str] = None,
+    property_subtype: Optional[str] = Query(None, description="Filter by property type e.g. Flats, Villa"),
+    possession_status: Optional[str] = Query(None, description="under_construction or ready_to_move"),
     min_price: Optional[float] = None,
     max_price: Optional[float] = None,
     bedrooms: Optional[int] = None,
@@ -271,6 +273,10 @@ async def search_properties(
     # Additional filters
     if transaction_type:
         query["transaction_type"] = transaction_type
+    if property_subtype:
+        query["property_subtype"] = property_subtype
+    if possession_status:
+        query["possession_status"] = possession_status
     if min_price is not None or max_price is not None:
         query["price"] = {}
         if min_price is not None:
