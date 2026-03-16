@@ -29,6 +29,10 @@ async def create_user(user: UserCreate):
     if not phone_value:
         user_dict.pop("phone", None)
 
+    # Ensure avatar_url is never null; use empty string as default
+    if not user_dict.get("avatar_url"):
+        user_dict["avatar_url"] = ""
+
     # Check if email already exists
     existing_user = await db.users.find_one({"email": user_dict["email"]})
     if existing_user:
