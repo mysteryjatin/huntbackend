@@ -200,6 +200,32 @@ async def check_phone_exists(phone_number: str):
     Useful for login/signup flow
     """
     db = await get_database()
+
+    # For App Store review / QA: treat configured review phone as existing,
+    # and auto-provision it if missing so login flow can proceed.
+    if _is_apple_review_phone(phone_number):
+        existing_user = await db.users.find_one({"phone": phone_number})
+        if not existing_user:
+            apple_name = os.getenv("APPLE_REVIEW_NAME", "Apple Review").strip() or "Apple Review"
+            apple_email = os.getenv("APPLE_REVIEW_EMAIL", "").strip() or None
+            apple_user_type = os.getenv("APPLE_REVIEW_USER_TYPE", "buyer").strip().lower() or "buyer"
+            if apple_user_type not in ["owner", "buyer", "agent"]:
+                apple_user_type = "buyer"
+
+            user_dict = {
+                "name": apple_name,
+                "phone": phone_number,
+                "email": apple_email or f"{phone_number}@temp.huntproperty.com",
+                "user_type": apple_user_type,
+                "created_at": datetime.utcnow(),
+                "password": hash_password(phone_number),
+            }
+            await db.users.insert_one(user_dict)
+        return {
+            "exists": True,
+            "phone_number": phone_number,
+        }
+
     user = await db.users.find_one({"phone": phone_number})
     
     return {
