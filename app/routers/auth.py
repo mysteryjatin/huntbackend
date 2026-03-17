@@ -21,6 +21,7 @@ from app.schemas import User
 from app.services.otp_service import OTPService
 from app.database import get_database
 import hashlib
+import os
 
 router = APIRouter()
 
@@ -28,6 +29,11 @@ router = APIRouter()
 def hash_password(password: str) -> str:
     """Simple password hashing (in production, use bcrypt)"""
     return hashlib.sha256(password.encode()).hexdigest()
+
+
+def _is_apple_review_phone(phone_number: str) -> bool:
+    configured = os.getenv("APPLE_REVIEW_PHONE", "").strip()
+    return bool(configured) and phone_number.strip() == configured
 
 
 @router.post("/request-otp", response_model=RequestOTPResponse, status_code=status.HTTP_200_OK)
@@ -221,10 +227,30 @@ async def login_request_otp(request: LoginRequestOTPRequest):
     db = await get_database()
     existing_user = await db.users.find_one({"phone": phone_number})
     if not existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User with this phone number not found. Please sign up first."
-        )
+        # For App Store review / QA: optionally auto-provision a single static account
+        # so login works on fresh DB without manual seeding.
+        if _is_apple_review_phone(phone_number):
+            apple_name = os.getenv("APPLE_REVIEW_NAME", "Apple Review").strip() or "Apple Review"
+            apple_email = os.getenv("APPLE_REVIEW_EMAIL", "").strip() or None
+            apple_user_type = os.getenv("APPLE_REVIEW_USER_TYPE", "buyer").strip().lower() or "buyer"
+            if apple_user_type not in ["owner", "buyer", "agent"]:
+                apple_user_type = "buyer"
+
+            user_dict = {
+                "name": apple_name,
+                "phone": phone_number,
+                "email": apple_email or f"{phone_number}@temp.huntproperty.com",
+                "user_type": apple_user_type,
+                "created_at": datetime.utcnow(),
+                "password": hash_password(phone_number),
+            }
+            await db.users.insert_one(user_dict)
+            existing_user = await db.users.find_one({"phone": phone_number})
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User with this phone number not found. Please sign up first."
+            )
     
     # Generate and send OTP via SMS (login flow)
     otp = await OTPService.send_otp(phone_number, is_login=True)

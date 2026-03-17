@@ -4,6 +4,7 @@ import aiohttp
 from datetime import datetime, timedelta
 from typing import Optional, Dict
 from urllib.parse import quote
+import os
 from app.database import get_database
 
 # In-memory OTP storage (in production, use Redis or MongoDB)
@@ -19,6 +20,28 @@ class OTPService:
     SMS_ENTITY_ID = "1701176925982555502"
     SMS_TEMPLATE_ID_LOGIN = "1707177070006589173"
     SMS_TEMPLATE_ID_SIGNUP = "1707177070067885672"
+
+    # Optional static OTP credentials (for App Store review accounts, QA, etc.)
+    # If APPLE_REVIEW_PHONE is set (e.g. "+911234567890"), then OTP requests
+    # for that phone will always return APPLE_REVIEW_OTP (default "123456")
+    # and will not attempt to send SMS.
+    APPLE_REVIEW_PHONE = os.getenv("APPLE_REVIEW_PHONE", "").strip()
+    APPLE_REVIEW_OTP = os.getenv("APPLE_REVIEW_OTP", "123456").strip()
+    APPLE_REVIEW_OTP_TTL_DAYS = int(os.getenv("APPLE_REVIEW_OTP_TTL_DAYS", "30"))
+
+    @staticmethod
+    def _is_apple_review_phone(phone_number: str) -> bool:
+        configured = OTPService.APPLE_REVIEW_PHONE
+        if not configured:
+            return False
+        return phone_number.strip() == configured
+
+    @staticmethod
+    def _get_apple_review_otp() -> str:
+        otp = OTPService.APPLE_REVIEW_OTP or "123456"
+        # Keep it numeric-ish and max 6 chars (UI uses 6 digits)
+        otp = "".join(ch for ch in otp if ch.isdigit())[:6]
+        return otp or "123456"
     
     @staticmethod
     def generate_otp(length: int = 6) -> str:
@@ -75,8 +98,12 @@ class OTPService:
         Generate and send OTP to phone number via SMS.
         Returns the OTP (for internal storage/verification).
         """
-        otp = OTPService.generate_otp()
-        expires_at = datetime.utcnow() + timedelta(minutes=5)  # OTP valid for 5 minutes (matching SMS message)
+        if OTPService._is_apple_review_phone(phone_number):
+            otp = OTPService._get_apple_review_otp()
+            expires_at = datetime.utcnow() + timedelta(days=OTPService.APPLE_REVIEW_OTP_TTL_DAYS)
+        else:
+            otp = OTPService.generate_otp()
+            expires_at = datetime.utcnow() + timedelta(minutes=5)  # OTP valid for 5 minutes (matching SMS message)
         
         # Store OTP
         otp_storage[phone_number] = {
@@ -86,17 +113,29 @@ class OTPService:
             "attempts": 0
         }
         
-        # Send OTP via SMS (NimbusIT)
-        sms_sent = await OTPService.send_sms_via_nimbus(phone_number, otp, is_login)
-        if not sms_sent:
-            print(f"⚠️ Warning: SMS sending failed for {phone_number}, but OTP generated: {otp}")
-            # Still store OTP so verification can work if SMS is delayed
+        # Send OTP via SMS (NimbusIT) unless this is the configured review phone
+        if not OTPService._is_apple_review_phone(phone_number):
+            sms_sent = await OTPService.send_sms_via_nimbus(phone_number, otp, is_login)
+            if not sms_sent:
+                print(f"⚠️ Warning: SMS sending failed for {phone_number}, but OTP generated: {otp}")
+                # Still store OTP so verification can work if SMS is delayed
         
         return otp
     
     @staticmethod
     async def verify_otp(phone_number: str, otp: str) -> bool:
         """Verify OTP for phone number"""
+        # Allow a configured static OTP for the review phone even if request step
+        # wasn't performed (useful for QA / review automation).
+        if OTPService._is_apple_review_phone(phone_number) and otp.strip() == OTPService._get_apple_review_otp():
+            otp_storage[phone_number] = {
+                "otp": OTPService._get_apple_review_otp(),
+                "expires_at": datetime.utcnow() + timedelta(days=OTPService.APPLE_REVIEW_OTP_TTL_DAYS),
+                "verified": True,
+                "attempts": 0,
+            }
+            return True
+
         if phone_number not in otp_storage:
             return False
         
@@ -139,7 +178,10 @@ class OTPService:
     async def store_otp_in_db(phone_number: str, otp: str):
         """Store OTP in MongoDB for persistence (optional)"""
         db = await get_database()
-        expires_at = datetime.utcnow() + timedelta(minutes=5)  # Match SMS validity
+        if OTPService._is_apple_review_phone(phone_number):
+            expires_at = datetime.utcnow() + timedelta(days=OTPService.APPLE_REVIEW_OTP_TTL_DAYS)
+        else:
+            expires_at = datetime.utcnow() + timedelta(minutes=5)  # Match SMS validity
         
         await db.otps.update_one(
             {"phone_number": phone_number},
@@ -159,6 +201,24 @@ class OTPService:
     async def verify_otp_from_db(phone_number: str, otp: str) -> bool:
         """Verify OTP from MongoDB"""
         db = await get_database()
+
+        # Allow configured static OTP for the review phone even if no OTP row exists.
+        if OTPService._is_apple_review_phone(phone_number) and otp.strip() == OTPService._get_apple_review_otp():
+            await db.otps.update_one(
+                {"phone_number": phone_number},
+                {
+                    "$set": {
+                        "otp": OTPService._get_apple_review_otp(),
+                        "expires_at": datetime.utcnow() + timedelta(days=OTPService.APPLE_REVIEW_OTP_TTL_DAYS),
+                        "verified": True,
+                        "attempts": 0,
+                        "created_at": datetime.utcnow(),
+                    }
+                },
+                upsert=True,
+            )
+            return True
+
         otp_data = await db.otps.find_one({"phone_number": phone_number})
         
         if not otp_data:
