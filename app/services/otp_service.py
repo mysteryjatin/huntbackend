@@ -21,27 +21,30 @@ class OTPService:
     SMS_TEMPLATE_ID_LOGIN = "1707177070006589173"
     SMS_TEMPLATE_ID_SIGNUP = "1707177070067885672"
 
-    # Optional static OTP credentials (for App Store review accounts, QA, etc.)
-    # If APPLE_REVIEW_PHONE is set (e.g. "+911234567890"), then OTP requests
-    # for that phone will always return APPLE_REVIEW_OTP (default "123456")
-    # and will not attempt to send SMS.
-    APPLE_REVIEW_PHONE = os.getenv("APPLE_REVIEW_PHONE", "").strip()
-    APPLE_REVIEW_OTP = os.getenv("APPLE_REVIEW_OTP", "123456").strip()
-    APPLE_REVIEW_OTP_TTL_DAYS = int(os.getenv("APPLE_REVIEW_OTP_TTL_DAYS", "30"))
-
     @staticmethod
     def _is_apple_review_phone(phone_number: str) -> bool:
-        configured = OTPService.APPLE_REVIEW_PHONE
+        # Read from env at runtime (PM2 reloads, containers, etc.)
+        configured = os.getenv("APPLE_REVIEW_PHONE", "").strip()
         if not configured:
             return False
         return phone_number.strip() == configured
 
     @staticmethod
     def _get_apple_review_otp() -> str:
-        otp = OTPService.APPLE_REVIEW_OTP or "123456"
+        otp = (os.getenv("APPLE_REVIEW_OTP", "123456") or "123456").strip()
         # Keep it numeric-ish and max 6 chars (UI uses 6 digits)
         otp = "".join(ch for ch in otp if ch.isdigit())[:6]
         return otp or "123456"
+
+    @staticmethod
+    def _get_apple_review_ttl_days() -> int:
+        raw = (os.getenv("APPLE_REVIEW_OTP_TTL_DAYS", "30") or "30").strip()
+        try:
+            days = int(raw)
+        except Exception:
+            days = 30
+        # Keep it sane even if misconfigured
+        return max(1, min(days, 365))
     
     @staticmethod
     def generate_otp(length: int = 6) -> str:
@@ -100,7 +103,7 @@ class OTPService:
         """
         if OTPService._is_apple_review_phone(phone_number):
             otp = OTPService._get_apple_review_otp()
-            expires_at = datetime.utcnow() + timedelta(days=OTPService.APPLE_REVIEW_OTP_TTL_DAYS)
+            expires_at = datetime.utcnow() + timedelta(days=OTPService._get_apple_review_ttl_days())
         else:
             otp = OTPService.generate_otp()
             expires_at = datetime.utcnow() + timedelta(minutes=5)  # OTP valid for 5 minutes (matching SMS message)
@@ -130,7 +133,7 @@ class OTPService:
         if OTPService._is_apple_review_phone(phone_number) and otp.strip() == OTPService._get_apple_review_otp():
             otp_storage[phone_number] = {
                 "otp": OTPService._get_apple_review_otp(),
-                "expires_at": datetime.utcnow() + timedelta(days=OTPService.APPLE_REVIEW_OTP_TTL_DAYS),
+                "expires_at": datetime.utcnow() + timedelta(days=OTPService._get_apple_review_ttl_days()),
                 "verified": True,
                 "attempts": 0,
             }
@@ -179,7 +182,7 @@ class OTPService:
         """Store OTP in MongoDB for persistence (optional)"""
         db = await get_database()
         if OTPService._is_apple_review_phone(phone_number):
-            expires_at = datetime.utcnow() + timedelta(days=OTPService.APPLE_REVIEW_OTP_TTL_DAYS)
+            expires_at = datetime.utcnow() + timedelta(days=OTPService._get_apple_review_ttl_days())
         else:
             expires_at = datetime.utcnow() + timedelta(minutes=5)  # Match SMS validity
         
@@ -209,7 +212,7 @@ class OTPService:
                 {
                     "$set": {
                         "otp": OTPService._get_apple_review_otp(),
-                        "expires_at": datetime.utcnow() + timedelta(days=OTPService.APPLE_REVIEW_OTP_TTL_DAYS),
+                        "expires_at": datetime.utcnow() + timedelta(days=OTPService._get_apple_review_ttl_days()),
                         "verified": True,
                         "attempts": 0,
                         "created_at": datetime.utcnow(),
