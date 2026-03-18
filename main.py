@@ -26,6 +26,9 @@ from app.routers import (
     home as home_router,
 )
 from app.database import connect_to_mongo, close_mongo_connection
+from app.upload_urls import get_uploads_directory
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Hunt Property API",
