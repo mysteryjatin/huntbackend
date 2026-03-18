@@ -27,7 +27,21 @@ class OTPService:
         configured = os.getenv("APPLE_REVIEW_PHONE", "").strip()
         if not configured:
             return False
-        return phone_number.strip() == configured
+        incoming = phone_number.strip()
+        matched = incoming == configured
+        if not matched:
+            # Safe debug log: don't print full phone numbers
+            def _mask(value: str) -> str:
+                if not value:
+                    return "<empty>"
+                tail = value[-2:] if len(value) >= 2 else value
+                return f"<len={len(value)}>*{tail}"
+
+            print(
+                "ℹ️ APPLE_REVIEW_PHONE configured but did not match. "
+                f"configured={_mask(configured)} incoming={_mask(incoming)}"
+            )
+        return matched
 
     @staticmethod
     def _get_apple_review_otp() -> str:

@@ -198,42 +198,44 @@ async def search_agents(
     Supports filtering by city and location search.
     """
     db = await get_database()
-    
-    # Build query for agents
-    query = {
+
+    # Must be an agent AND match optional city/location filters
+    agent_filter: dict = {
         "$or": [
             {"user_type": "agent"},
-            {"is_real_estate_agent": True}
+            {"is_real_estate_agent": True},
         ]
     }
-    
-    # Add city filter if provided
-    if city:
-        # Case-insensitive city search (supports fields: city, address, location.city, etc.)
-        query["$or"].append({
-            "$or": [
-                {"city": {"$regex": city, "$options": "i"}},
-                {"address": {"$regex": city, "$options": "i"}},
-                {"location.city": {"$regex": city, "$options": "i"}},
-                {"dealing_in": {"$regex": city, "$options": "i"}}
-            ]
-        })
-    
-    # Add location/locality search if provided
-    if location:
-        location_query = {
-            "$or": [
-                {"address": {"$regex": location, "$options": "i"}},
-                {"locality": {"$regex": location, "$options": "i"}},
-                {"location.locality": {"$regex": location, "$options": "i"}},
-                {"city": {"$regex": location, "$options": "i"}},
-                {"dealing_in": {"$regex": location, "$options": "i"}}
-            ]
-        }
-        if "$or" in query and len(query["$or"]) > 2:
-            query["$and"] = [{"$or": query["$or"][:2]}, location_query]
-        else:
-            query.update(location_query)
+    parts: List[dict] = [agent_filter]
+
+    if city and city.strip():
+        c = city.strip()
+        parts.append(
+            {
+                "$or": [
+                    {"city": {"$regex": c, "$options": "i"}},
+                    {"address": {"$regex": c, "$options": "i"}},
+                    {"location.city": {"$regex": c, "$options": "i"}},
+                    {"dealing_in": {"$regex": c, "$options": "i"}},
+                ]
+            }
+        )
+
+    if location and location.strip():
+        loc = location.strip()
+        parts.append(
+            {
+                "$or": [
+                    {"address": {"$regex": loc, "$options": "i"}},
+                    {"locality": {"$regex": loc, "$options": "i"}},
+                    {"location.locality": {"$regex": loc, "$options": "i"}},
+                    {"city": {"$regex": loc, "$options": "i"}},
+                    {"dealing_in": {"$regex": loc, "$options": "i"}},
+                ]
+            }
+        )
+
+    query: dict = {"$and": parts} if len(parts) > 1 else agent_filter
     
     # Count total agents
     total = await db.users.count_documents(query)
@@ -281,6 +283,7 @@ async def search_agents(
             f"{agent.get('locality', '')}, {dealing_in}".strip(", ")
         )
         
+        avatar = agent.get("avatar_url") or agent.get("profile_image") or ""
         formatted_agent = {
             "_id": str(agent["_id"]),
             "name": agent.get("name", "Agent"),
@@ -290,6 +293,7 @@ async def search_agents(
             "city": agent.get("city") or dealing_in,
             "dealing_in": dealing_in,
             "operating_since": operating_since or "2020",
+            "avatar_url": avatar,
             "user_type": agent.get("user_type", "agent"),
             "created_at": agent.get("created_at").isoformat() if agent.get("created_at") else None
         }
