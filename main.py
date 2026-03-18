@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -62,10 +63,11 @@ app.include_router(upload.router, prefix="/api/upload", tags=["Upload"])
 app.include_router(vaastu.router, prefix="/api/vaastu", tags=["Vaastu"])
 app.include_router(home_router.router, prefix="/api/home", tags=["Home"])
 
-# Serve uploaded images at /uploads/
-uploads_dir = Path(__file__).resolve().parent / "uploads"
+# Serve uploaded images at /uploads/ (same dir as upload router; override with HUNT_UPLOADS_DIR)
+uploads_dir = get_uploads_directory()
 uploads_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=str(uploads_dir)), name="uploads")
+logger.info("Serving /uploads/ from %s", uploads_dir)
 
 
 @app.on_event("startup")

@@ -1,23 +1,21 @@
 """
 Image upload for property listings.
-Saves files to uploads/ and returns a URL path that the app can use in property.images.
+Saves under HUNT_UPLOADS_DIR (default: backend/uploads). Same folder must be served at /uploads/ in production (nginx).
 """
-import os
 import uuid
-from pathlib import Path
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
 
+from app.upload_urls import get_uploads_directory, upload_response_payload
+
 router = APIRouter()
 
-# Directory to store uploads (relative to project root)
-UPLOADS_DIR = Path(__file__).resolve().parent.parent.parent / "uploads"
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
 MAX_SIZE_MB = 10
 
 
 def _ensure_uploads_dir():
-    UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+    get_uploads_directory().mkdir(parents=True, exist_ok=True)
 
 
 def _allowed_file(filename: str) -> bool:
@@ -27,8 +25,7 @@ def _allowed_file(filename: str) -> bool:
 @router.post("/image")
 async def upload_image(file: UploadFile = File(...)):
     """
-    Upload a single image. Returns { "url": "/uploads/<filename>" }.
-    Frontend should prepend base URL when displaying or sending in create property (e.g. baseUrl + url).
+    Upload a single image. Returns url (absolute …/uploads/…), path (/uploads/…), filename.
     """
     if not file.filename or not _allowed_file(file.filename):
         raise HTTPException(
@@ -39,7 +36,7 @@ async def upload_image(file: UploadFile = File(...)):
     _ensure_uploads_dir()
     ext = Path(file.filename).suffix.lower()
     unique_name = f"{uuid.uuid4().hex}{ext}"
-    file_path = UPLOADS_DIR / unique_name
+    file_path = get_uploads_directory() / unique_name
 
     try:
         contents = await file.read()
@@ -55,4 +52,4 @@ async def upload_image(file: UploadFile = File(...)):
             file_path.unlink(missing_ok=True)
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
-    return {"url": f"/uploads/{unique_name}"}
+    return upload_response_payload(unique_name)

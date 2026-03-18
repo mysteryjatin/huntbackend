@@ -7,6 +7,7 @@ from fastapi import APIRouter, Query
 from typing import Optional, List, Any
 from bson import ObjectId
 from app.database import get_database
+from app.upload_urls import canonical_client_image_url, get_public_origin
 
 router = APIRouter()
 
@@ -30,7 +31,7 @@ def _format_price_display(price: float, transaction_type: str) -> str:
     return f"₹{int(price):,}"
 
 
-def _property_card_doc(prop: dict, base_url: str = "") -> dict:
+def _property_card_doc(prop: dict) -> dict:
     """Build a single property object for home card: id, title, location, price, price_display, image_url, tag, etc."""
     loc = prop.get("location") or {}
     locality = (loc.get("locality") or "").strip()
@@ -46,8 +47,8 @@ def _property_card_doc(prop: dict, base_url: str = "") -> dict:
     if images:
         first = images[0]
         url = first.get("url") if isinstance(first, dict) else str(first)
-        if url and (url.startswith("http") or url.startswith("/")):
-            first_image = url if url.startswith("http") else f"{base_url.rstrip('/')}{url}"
+        if url:
+            first_image = canonical_client_image_url(url) or url
 
     # For rent, optional details line e.g. "3BHK | Anna Nagar, Chennai"
     bedrooms = prop.get("bedrooms")
@@ -96,7 +97,6 @@ async def get_home_sections(
     transaction_type: all | buy (sale only) | rent (rent only) | projects (under_construction) | residential | commercial.
     """
     db = await get_database()
-    base_url = "https://huntindiainfra.com"  # HTTPS so mixed-content is avoided on frontend
     city_filter = (city or DEFAULT_CITY).strip() or DEFAULT_CITY
     filter_type = (transaction_type or "all").strip().lower()
 
@@ -132,7 +132,7 @@ async def get_home_sections(
             .limit(limit)
         )
         proj_props = await proj_cursor.to_list(length=limit)
-        top_selling = [_property_card_doc(p, base_url) for p in proj_props]
+        top_selling = [_property_card_doc(p) for p in proj_props]
         add_favorite(top_selling)
         return {
             "success": True,
@@ -173,7 +173,7 @@ async def get_home_sections(
             .limit(limit)
         )
         top_props = await top_cursor.to_list(length=limit)
-        top_selling = [_property_card_doc(p, base_url) for p in top_props]
+        top_selling = [_property_card_doc(p) for p in top_props]
         add_favorite(top_selling)
 
         rec_match = {"transaction_type": "sale", **category_filter}
@@ -183,7 +183,7 @@ async def get_home_sections(
             .limit(limit)
         )
         rec_props = await rec_cursor.to_list(length=limit)
-        recommend = [_property_card_doc(p, base_url) for p in rec_props]
+        recommend = [_property_card_doc(p) for p in rec_props]
         add_favorite(recommend)
 
     if show_rent:
@@ -194,7 +194,7 @@ async def get_home_sections(
             .limit(limit)
         )
         rent_props = await rent_cursor.to_list(length=limit)
-        for_rent = [_property_card_doc(p, base_url) for p in rent_props]
+        for_rent = [_property_card_doc(p) for p in rent_props]
         add_favorite(for_rent)
 
     return {

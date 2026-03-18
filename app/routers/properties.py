@@ -5,6 +5,7 @@ from datetime import datetime
 import math
 from app.schemas import Property, PropertyCreate, PropertyUpdate, PropertySearchParams, PropertyListResponse
 from app.database import get_database
+from app.upload_urls import normalize_property_images_inplace
 
 router = APIRouter()
 
@@ -27,6 +28,7 @@ async def create_property(property: PropertyCreate):
     created_property = await db.properties.find_one({"_id": result.inserted_id})
     created_property["_id"] = str(created_property["_id"])
     created_property["owner_id"] = str(created_property["owner_id"])
+    normalize_property_images_inplace(created_property)
     return created_property
 
 
@@ -144,12 +146,13 @@ async def get_properties(
     for prop in properties:
         prop["_id"] = str(prop["_id"])
         prop["owner_id"] = str(prop["owner_id"])
-    
+        normalize_property_images_inplace(prop)
+
     # Calculate pagination metadata
     total_pages = math.ceil(total / limit) if total > 0 else 0
     has_next = page < total_pages
     has_prev = page > 1
-    
+
     return PropertyListResponse(
         properties=properties,
         total=total,
@@ -218,6 +221,7 @@ async def get_my_listings(
         prop["saves"] = saves_map.get(prop["_id"], 0)
         prop.setdefault("listing_status", "active")
         prop.setdefault("view_count", 0)
+        normalize_property_images_inplace(prop)
 
     total_pages = math.ceil(total / limit) if total > 0 else 0
     return PropertyListResponse(
@@ -296,7 +300,8 @@ async def search_properties(
     for prop in properties:
         prop["_id"] = str(prop["_id"])
         prop["owner_id"] = str(prop["owner_id"])
-    
+        normalize_property_images_inplace(prop)
+
     return properties
 
 
@@ -313,6 +318,7 @@ async def get_property(property_id: str):
     
     property["_id"] = str(property["_id"])
     property["owner_id"] = str(property["owner_id"])
+    normalize_property_images_inplace(property)
     return property
 
 
@@ -342,6 +348,7 @@ async def update_property(property_id: str, property_update: PropertyUpdate):
     updated_property = await db.properties.find_one({"_id": ObjectId(property_id)})
     updated_property["_id"] = str(updated_property["_id"])
     updated_property["owner_id"] = str(updated_property["owner_id"])
+    normalize_property_images_inplace(updated_property)
     return updated_property
 
 
@@ -372,8 +379,8 @@ async def get_properties_by_owner(owner_id: str):
     for prop in properties:
         prop["_id"] = str(prop["_id"])
         prop["owner_id"] = str(prop["owner_id"])
-    
-    return properties
+        normalize_property_images_inplace(prop)
 
+    return properties
 
 

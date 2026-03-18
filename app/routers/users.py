@@ -4,6 +4,7 @@ from bson import ObjectId
 from datetime import datetime
 from app.schemas import User, UserCreate, UserUpdate
 from app.database import get_database
+from app.upload_urls import canonical_client_image_url
 import hashlib
 import math
 
@@ -284,6 +285,8 @@ async def search_agents(
         )
         
         avatar = agent.get("avatar_url") or agent.get("profile_image") or ""
+        if avatar:
+            avatar = canonical_client_image_url(avatar) or avatar
         formatted_agent = {
             "_id": str(agent["_id"]),
             "name": agent.get("name", "Agent"),
