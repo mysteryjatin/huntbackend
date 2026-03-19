@@ -3,6 +3,7 @@ Image upload for property listings.
 Saves under HUNT_UPLOADS_DIR (default: backend/uploads). Same folder must be served at /uploads/ in production (nginx).
 """
 import uuid
+from pathlib import Path
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
 

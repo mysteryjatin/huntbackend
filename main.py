@@ -24,6 +24,7 @@ from app.routers import (
     upload,
     vaastu,
     home as home_router,
+    agent_contact_leads,
 )
 from app.database import connect_to_mongo, close_mongo_connection
 from app.upload_urls import get_uploads_directory
@@ -65,6 +66,11 @@ app.include_router(requirements.router, prefix="/api/requirements", tags=["Requi
 app.include_router(upload.router, prefix="/api/upload", tags=["Upload"])
 app.include_router(vaastu.router, prefix="/api/vaastu", tags=["Vaastu"])
 app.include_router(home_router.router, prefix="/api/home", tags=["Home"])
+app.include_router(
+    agent_contact_leads.router,
+    prefix="/api/agent-contact-leads",
+    tags=["Agent Contact Leads"],
+)
 
 # Serve uploaded images at /uploads/ (same dir as upload router; override with HUNT_UPLOADS_DIR)
 uploads_dir = get_uploads_directory()

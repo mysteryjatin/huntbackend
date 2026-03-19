@@ -1,6 +1,6 @@
 from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_serializer
 from pydantic_core import core_schema
-from typing import Optional, List, Annotated, Union
+from typing import Optional, List, Annotated, Union, Literal
 from datetime import datetime
 from bson import ObjectId
 
@@ -651,4 +651,46 @@ class Requirement(RequirementBase):
         default="submitted",
         description="submitted, in_progress, matched, closed",
     )
+    created_at: datetime
+
+
+# Search Agent — Contact Agent lead (public form)
+class AgentContactLeadCreate(BaseModel):
+    agent_id: Optional[str] = Field(
+        default=None,
+        description="MongoDB user _id of the agent when known",
+    )
+    agent_name: str = Field(..., min_length=1, description="Display name of the agent")
+    full_name: str = Field(..., min_length=1)
+    email: EmailStr
+    phone_number: str = Field(..., min_length=5, max_length=32)
+    interest_type: Optional[str] = Field(
+        default=None,
+        description="Optional: Buy, Rent, Sell, Invest, Other",
+    )
+    user_role: Literal["individual", "dealer"] = Field(
+        ...,
+        description="Submitter type: individual or dealer",
+    )
+    consent_accepted: bool = Field(
+        ...,
+        description="Must be true — user agrees to be contacted",
+    )
+
+
+class AgentContactLead(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+        arbitrary_types_allowed=True,
+        json_encoders={ObjectId: str},
+    )
+    id: Optional[PyObjectId] = Field(None, alias="_id")
+    agent_id: Optional[str] = None
+    agent_name: str
+    full_name: str
+    email: str
+    phone_number: str
+    interest_type: Optional[str] = None
+    user_role: str
+    consent_accepted: bool
     created_at: datetime
