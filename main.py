@@ -25,6 +25,7 @@ from app.routers import (
     vaastu,
     home as home_router,
     agent_contact_leads,
+    channel_partner_applications,
 )
 from app.database import connect_to_mongo, close_mongo_connection
 from app.upload_urls import get_uploads_directory
@@ -70,6 +71,11 @@ app.include_router(
     agent_contact_leads.router,
     prefix="/api/agent-contact-leads",
     tags=["Agent Contact Leads"],
+)
+app.include_router(
+    channel_partner_applications.router,
+    prefix="/api/channel-partner-applications",
+    tags=["Channel Partner Applications"],
 )
 
 # Serve uploaded images at /uploads/ (same dir as upload router; override with HUNT_UPLOADS_DIR)

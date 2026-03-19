@@ -694,3 +694,33 @@ class AgentContactLead(BaseModel):
     user_role: str
     consent_accepted: bool
     created_at: datetime
+
+
+# Channel Partner Application (public form — no login required)
+class ChannelPartnerApplicationCreate(BaseModel):
+    full_name: str = Field(..., min_length=1, description="Applicant full name")
+    mobile: str = Field(..., min_length=5, max_length=20, description="Mobile / phone number")
+    email: EmailStr
+    company_name: Optional[str] = Field(default=None, description="Real estate firm name")
+    industry_type: Optional[str] = Field(
+        default=None,
+        description="Broker / Channel Partner, Developer, Wealth Manager, Financial Advisor",
+    )
+    message: Optional[str] = Field(default=None, description="Applicant's message or background")
+
+
+class ChannelPartnerApplication(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+        arbitrary_types_allowed=True,
+        json_encoders={ObjectId: str},
+    )
+    id: Optional[PyObjectId] = Field(None, alias="_id")
+    full_name: str
+    mobile: str
+    email: str
+    company_name: Optional[str] = None
+    industry_type: Optional[str] = None
+    message: Optional[str] = None
+    status: str = "new"
+    created_at: datetime
