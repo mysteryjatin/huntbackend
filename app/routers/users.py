@@ -78,8 +78,12 @@ async def get_user(user_id: str):
     db = await get_database()
     if not ObjectId.is_valid(user_id):
         raise HTTPException(status_code=400, detail="Invalid user ID")
-    
+
+    # Some older records may store `_id` as a string instead of ObjectId.
+    # Try both representations for better compatibility.
     user = await db.users.find_one({"_id": ObjectId(user_id)})
+    if not user:
+        user = await db.users.find_one({"_id": user_id})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
@@ -95,7 +99,10 @@ async def get_profile(user_id: str):
     if not ObjectId.is_valid(user_id):
         raise HTTPException(status_code=400, detail="Invalid user ID")
 
+    # Compatibility: allow `_id` stored as string in some environments.
     user = await db.users.find_one({"_id": ObjectId(user_id)})
+    if not user:
+        user = await db.users.find_one({"_id": user_id})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
