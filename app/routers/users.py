@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Body
 from typing import List, Optional
 from bson import ObjectId
 from datetime import datetime
@@ -9,6 +9,24 @@ import hashlib
 import math
 
 router = APIRouter()
+
+DELETE_REASON_MAP = {
+    "sold_out": {
+        "removal_reason": "property_sold_out",
+        "availability_message": "This property is marked as sold out.",
+        "default_note": "Owner account deleted after property sold out.",
+    },
+    "rent_out": {
+        "removal_reason": "property_rent_out",
+        "availability_message": "This property is marked as rented out.",
+        "default_note": "Owner account deleted after property rented out.",
+    },
+    "changed_mind": {
+        "removal_reason": "owner_changed_mind",
+        "availability_message": "Now this property is unavailable.",
+        "default_note": "Owner deleted account after changing mind.",
+    },
+}
 
 
 def hash_password(password: str) -> str:
@@ -180,7 +198,10 @@ async def update_profile(user_id: str, user_update: UserUpdate):
 
 
 @router.delete("/{user_id}", status_code=200)
-async def delete_user(user_id: str):
+async def delete_user(
+    user_id: str,
+    payload: Optional[dict] = Body(default=None),
+):
     """
     Permanently delete a user account.
     Before deleting the account, mark all owned properties as inactive/unavailable.
@@ -195,16 +216,30 @@ async def delete_user(user_id: str):
     if not existing_user:
         raise HTTPException(status_code=404, detail="User not found")
 
+    payload = payload or {}
+    selected_reason = str(payload.get("reason") or "").strip().lower()
+    selected_note = str(payload.get("note") or "").strip()
+
+    reason_config = DELETE_REASON_MAP.get(
+        selected_reason,
+        {
+            "removal_reason": "user_account_deleted",
+            "availability_message": "Now this property is unavailable.",
+            "default_note": "Owner account deleted permanently",
+        },
+    )
+
     # Soft-update all properties owned by this user so they are no longer publicly active.
+    # Match both ObjectId and string owner_id formats for backward compatibility.
     properties_result = await db.properties.update_many(
-        {"owner_id": user_obj_id},
+        {"owner_id": {"$in": [user_obj_id, user_id]}},
         {
             "$set": {
                 "listing_status": "inactive",
                 "availability_status": "unavailable",
-                "availability_message": "Now this property is unavailable.",
-                "removal_reason": "user_account_deleted",
-                "removal_note": "Owner account deleted permanently",
+                "availability_message": reason_config["availability_message"],
+                "removal_reason": reason_config["removal_reason"],
+                "removal_note": selected_note or reason_config["default_note"],
                 "removed_at": datetime.utcnow(),
             }
         },
@@ -218,6 +253,7 @@ async def delete_user(user_id: str):
         "message": "User deleted permanently and properties updated",
         "deleted_user_id": user_id,
         "updated_properties": properties_result.modified_count,
+        "applied_removal_reason": reason_config["removal_reason"],
     }
 
 
