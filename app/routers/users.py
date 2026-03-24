@@ -179,18 +179,46 @@ async def update_profile(user_id: str, user_update: UserUpdate):
     return updated_user
 
 
-@router.delete("/{user_id}", status_code=204)
+@router.delete("/{user_id}", status_code=200)
 async def delete_user(user_id: str):
-    """Delete a user"""
+    """
+    Permanently delete a user account.
+    Before deleting the account, mark all owned properties as inactive/unavailable.
+    """
     db = await get_database()
     if not ObjectId.is_valid(user_id):
         raise HTTPException(status_code=400, detail="Invalid user ID")
-    
-    result = await db.users.delete_one({"_id": ObjectId(user_id)})
-    if result.deleted_count == 0:
+
+    user_obj_id = ObjectId(user_id)
+
+    existing_user = await db.users.find_one({"_id": user_obj_id})
+    if not existing_user:
         raise HTTPException(status_code=404, detail="User not found")
-    
-    return None
+
+    # Soft-update all properties owned by this user so they are no longer publicly active.
+    properties_result = await db.properties.update_many(
+        {"owner_id": user_obj_id},
+        {
+            "$set": {
+                "listing_status": "inactive",
+                "availability_status": "unavailable",
+                "availability_message": "Now this property is unavailable.",
+                "removal_reason": "user_account_deleted",
+                "removal_note": "Owner account deleted permanently",
+                "removed_at": datetime.utcnow(),
+            }
+        },
+    )
+
+    user_delete_result = await db.users.delete_one({"_id": user_obj_id})
+    if user_delete_result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return {
+        "message": "User deleted permanently and properties updated",
+        "deleted_user_id": user_id,
+        "updated_properties": properties_result.modified_count,
+    }
 
 
 @router.get("/agents/search", response_model=dict)
@@ -323,6 +351,7 @@ async def search_agents(
             "has_prev": page > 1
         }
     }
+
 
 
 

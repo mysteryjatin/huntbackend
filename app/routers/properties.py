@@ -1,9 +1,9 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Body
 from typing import List, Optional
 from bson import ObjectId
 from datetime import datetime
 import math
-from app.schemas import Property, PropertyCreate, PropertyUpdate, PropertySearchParams, PropertyListResponse
+from app.schemas import Property, PropertyCreate, PropertyUpdate, PropertySearchParams, PropertyListResponse, PropertyDeleteActionRequest
 from app.database import get_database
 from app.upload_urls import normalize_property_images_inplace
 
@@ -19,6 +19,10 @@ async def create_property(property: PropertyCreate):
     property_dict["posted_at"] = datetime.utcnow()
     property_dict.setdefault("listing_status", "active")
     property_dict.setdefault("view_count", 0)
+    property_dict.setdefault("availability_status", "available")
+    property_dict.setdefault("availability_message", None)
+    property_dict.setdefault("removal_reason", None)
+    property_dict.setdefault("removal_note", None)
 
     # Convert nested objects
     if "images" in property_dict:
@@ -221,6 +225,8 @@ async def get_my_listings(
         prop["saves"] = saves_map.get(prop["_id"], 0)
         prop.setdefault("listing_status", "active")
         prop.setdefault("view_count", 0)
+        prop.setdefault("availability_status", "available")
+        prop.setdefault("availability_message", None)
         normalize_property_images_inplace(prop)
 
     total_pages = math.ceil(total / limit) if total > 0 else 0
@@ -352,18 +358,46 @@ async def update_property(property_id: str, property_update: PropertyUpdate):
     return updated_property
 
 
-@router.delete("/{property_id}", status_code=204)
-async def delete_property(property_id: str):
-    """Delete a property"""
+@router.delete("/{property_id}", response_model=Property)
+async def delete_property(property_id: str, payload: PropertyDeleteActionRequest = Body(...)):
+    """Soft-delete a property by reason and keep record for status display."""
     db = await get_database()
     if not ObjectId.is_valid(property_id):
         raise HTTPException(status_code=400, detail="Invalid property ID")
-    
-    result = await db.properties.delete_one({"_id": ObjectId(property_id)})
-    if result.deleted_count == 0:
+
+    reason_to_status = {
+        "sold": ("sold", "This property is sold out!"),
+        "rented_out": ("rented_out", "This property is rent out!"),
+        "changed_mind": ("unavailable", "Now this property is unavailable."),
+    }
+
+    availability_status, availability_message = reason_to_status[payload.reason]
+
+    note = (payload.note or "").strip()
+    if payload.reason == "changed_mind" and not note:
+        raise HTTPException(status_code=400, detail="Note is required when reason is changed_mind")
+
+    update_data = {
+        "listing_status": "inactive",
+        "availability_status": availability_status,
+        "availability_message": availability_message,
+        "removal_reason": payload.reason,
+        "removal_note": note or None,
+        "removed_at": datetime.utcnow(),
+    }
+
+    result = await db.properties.update_one(
+        {"_id": ObjectId(property_id)},
+        {"$set": update_data}
+    )
+    if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Property not found")
-    
-    return None
+
+    updated_property = await db.properties.find_one({"_id": ObjectId(property_id)})
+    updated_property["_id"] = str(updated_property["_id"])
+    updated_property["owner_id"] = str(updated_property["owner_id"])
+    normalize_property_images_inplace(updated_property)
+    return updated_property
 
 
 @router.get("/owner/{owner_id}", response_model=List[Property])
@@ -382,5 +416,8 @@ async def get_properties_by_owner(owner_id: str):
         normalize_property_images_inplace(prop)
 
     return properties
+
+
+
 
 

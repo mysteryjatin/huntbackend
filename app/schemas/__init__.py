@@ -143,6 +143,22 @@ class PropertyBase(BaseModel):
         description="Listing status: 'active', 'pending', or 'rejected'",
     )
     view_count: Optional[int] = Field(default=0, description="Number of views (for My Listing)")
+    availability_status: Optional[str] = Field(
+        default="available",
+        description="Availability state: available, sold, rented_out, unavailable",
+    )
+    availability_message: Optional[str] = Field(
+        default=None,
+        description="User-facing status message like 'This property is sold out!'",
+    )
+    removal_reason: Optional[str] = Field(
+        default=None,
+        description="Reason selected when owner removes listing: sold, rented_out, changed_mind",
+    )
+    removal_note: Optional[str] = Field(
+        default=None,
+        description="Optional note by owner when reason is changed_mind",
+    )
 
 
 class PropertyCreate(PropertyBase):
@@ -193,6 +209,16 @@ class Property(PropertyBase):
 
 
 # User Schemas
+
+class PropertyDeleteActionRequest(BaseModel):
+    reason: Literal["sold", "rented_out", "changed_mind"] = Field(
+        ...,
+        description="Reason for removing listing from active inventory",
+    )
+    note: Optional[str] = Field(
+        default=None,
+        description="Required note when reason is changed_mind",
+    )
 class UserBase(BaseModel):
     name: str
     email: EmailStr
