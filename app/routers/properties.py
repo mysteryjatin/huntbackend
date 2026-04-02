@@ -3,11 +3,29 @@ from typing import List, Optional
 from bson import ObjectId
 from datetime import datetime
 import math
+import re
 from app.schemas import Property, PropertyCreate, PropertyUpdate, PropertySearchParams, PropertyListResponse, PropertyDeleteActionRequest
 from app.database import get_database
 from app.upload_urls import normalize_property_images_inplace
 
 router = APIRouter()
+
+
+def _search_keyword_or_clauses(effective_text: str) -> List[dict]:
+    """
+    Substring search aligned with Flutter PropertySearchMatcher (city, locality, address,
+    title, description, amenities). MongoDB $text is not used: it requires a text index
+    and often misses location phrases like 'Greater Noida' that the app finds via fallback.
+    """
+    pat = re.escape(effective_text.strip())
+    return [
+        {"location.city": {"$regex": pat, "$options": "i"}},
+        {"location.locality": {"$regex": pat, "$options": "i"}},
+        {"location.address": {"$regex": pat, "$options": "i"}},
+        {"title": {"$regex": pat, "$options": "i"}},
+        {"description": {"$regex": pat, "$options": "i"}},
+        {"amenities": {"$regex": pat, "$options": "i"}},
+    ]
 
 
 @router.post("/", response_model=Property, status_code=201)
@@ -73,7 +91,7 @@ async def get_properties(
 
     effective_text = (search or text or "").strip()
     if effective_text:
-        query["$text"] = {"$search": effective_text}
+        query["$or"] = _search_keyword_or_clauses(effective_text)
 
     # Basic filters
     if transaction_type:
@@ -269,11 +287,11 @@ async def search_properties(
     db = await get_database()
     query = {}
     
-    # Text search
-    effective_text = search or text
+    # Keyword search (same behaviour as GET / list — see _search_keyword_or_clauses)
+    effective_text = (search or text or "").strip()
     if effective_text:
-        query["$text"] = {"$search": effective_text}
-    
+        query["$or"] = _search_keyword_or_clauses(effective_text)
+
     # Geo search
     if longitude is not None and latitude is not None:
         query["location.geo"] = {
