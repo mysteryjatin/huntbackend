@@ -16,6 +16,20 @@ DEFAULT_CITY = "Chennai"
 SECTION_LIMIT = 10
 
 
+def _listing_tag_label(transaction_type: str, possession_status: Optional[str]) -> str:
+    """
+    Short label for property cards: Rent | New | Resale.
+    Matches posting flow: sale + under_construction → New; sale + ready_to_move → Resale; rent → Rent.
+    """
+    tx = (transaction_type or "sale").strip().lower()
+    if tx == "rent":
+        return "Rent"
+    pos = (possession_status or "").strip().lower().replace(" ", "_")
+    if "under_construction" in pos:
+        return "New"
+    return "Resale"
+
+
 def _format_price_display(price: float, transaction_type: str) -> str:
     """Format price for UI: sale in Lacs (₹45L), rent as monthly (₹15,000)."""
     if transaction_type == "rent":
@@ -39,8 +53,10 @@ def _property_card_doc(prop: dict) -> dict:
     location_str = f"{locality}, {city}" if locality and city else (locality or city or "N/A")
 
     transaction_type = (prop.get("transaction_type") or "sale").lower()
+    possession_status = prop.get("possession_status")
     price = float(prop.get("price") or 0)
     price_display = _format_price_display(price, transaction_type)
+    listing_tag = _listing_tag_label(transaction_type, possession_status)
 
     images = prop.get("images") or []
     first_image = None
@@ -61,7 +77,9 @@ def _property_card_doc(prop: dict) -> dict:
         "owner_id": str(prop.get("owner_id", "")),
         "title": (prop.get("title") or "Property").strip(),
         "transaction_type": transaction_type,
-        "tag": "Rent" if transaction_type == "rent" else "Sell",
+        "possession_status": possession_status,
+        "tag": listing_tag,
+        "listing_tag": listing_tag,
         "price": price,
         "price_display": price_display,
         "location": location_str,
