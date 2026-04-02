@@ -790,3 +790,39 @@ class CareerApplication(BaseModel):
     position_discovery: Optional[str] = None
     status: str = "new"
     created_at: datetime
+
+
+# ── Success Stories (Share Your Story — website) ────────────────────────────
+
+class SuccessStoryCreate(BaseModel):
+    first_name: str = Field(..., min_length=1)
+    last_name: str = Field(..., min_length=1)
+    email: EmailStr
+    phone: str = Field(..., min_length=5, max_length=32)
+    state: Optional[str] = Field(default=None)
+    city: Optional[str] = Field(default=None)
+    story: str = Field(..., min_length=10, description="Success story text")
+    consent_ads: bool = Field(default=False, description="Allow use in ads / press")
+    image_url: Optional[str] = Field(default=None, description="Optional uploaded image URL")
+    user_id: Optional[str] = Field(default=None, description="Logged-in user id if available")
+
+
+class SuccessStory(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+        arbitrary_types_allowed=True,
+        json_encoders={ObjectId: str},
+    )
+    id: Optional[PyObjectId] = Field(None, alias="_id")
+    first_name: str
+    last_name: str
+    email: str
+    phone: str
+    state: Optional[str] = None
+    city: Optional[str] = None
+    story: str
+    consent_ads: bool = False
+    image_url: Optional[str] = None
+    user_id: Optional[str] = None
+    status: str = "new"
+    created_at: datetime

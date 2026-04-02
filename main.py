@@ -27,6 +27,7 @@ from app.routers import (
     agent_contact_leads,
     channel_partner_applications,
     career_applications,
+    success_stories,
 )
 from app.database import connect_to_mongo, close_mongo_connection
 from app.upload_urls import get_uploads_directory
@@ -82,6 +83,11 @@ app.include_router(
     career_applications.router,
     prefix="/api/career-applications",
     tags=["Career Applications"],
+)
+app.include_router(
+    success_stories.router,
+    prefix="/api/success-stories",
+    tags=["Success Stories"],
 )
 
 # Serve uploaded images at /uploads/ (same dir as upload router; override with HUNT_UPLOADS_DIR)
