@@ -11,7 +11,7 @@ from app.upload_urls import get_uploads_directory, upload_response_payload
 
 router = APIRouter()
 
-ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
+ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".heic", ".heif"}
 MAX_SIZE_MB = 10
 
 # Résumés / documents (careers form)
@@ -39,7 +39,7 @@ async def upload_image(file: UploadFile = File(...)):
     if not file.filename or not _allowed_file(file.filename):
         raise HTTPException(
             status_code=400,
-            detail="Invalid file. Allowed: jpg, jpeg, png, gif, webp",
+            detail="Invalid file. Allowed: jpg, jpeg, png, gif, webp, heic, heif",
         )
 
     _ensure_uploads_dir()

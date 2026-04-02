@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 _UPLOAD_FILENAME_RE = re.compile(
-    r"^([a-f0-9]{32}\.(?:jpe?g|jpeg|png|gif|webp))$", re.IGNORECASE
+    r"^([a-f0-9]{32}\.(?:jpe?g|jpeg|png|gif|webp|heic|heif))$", re.IGNORECASE
 )
 
 

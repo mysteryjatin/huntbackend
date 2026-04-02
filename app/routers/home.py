@@ -3,8 +3,6 @@ Home Screen API - Returns sectioned property data for the home screen.
 Sections: Top Selling Projects (in city), Recommend Your Location, Property for Rent.
 Each property includes id, title, location, price, price_display, image_url, etc. for cards.
 """
-from datetime import datetime, timedelta, timezone
-
 from fastapi import APIRouter, Query
 from typing import Optional, List, Any
 from bson import ObjectId
@@ -30,34 +28,6 @@ def _listing_tag_label(transaction_type: str, possession_status: Optional[str]) 
     if "under_construction" in pos:
         return "New"
     return "Resale"
-
-
-def _is_new_listing(posted_at) -> bool:
-    """True if listing was posted within the last 14 days (for NEW badge on rent cards)."""
-    if posted_at is None:
-        return False
-    try:
-        if not isinstance(posted_at, datetime):
-            return False
-        now = datetime.now(timezone.utc)
-        p = posted_at
-        if p.tzinfo is None:
-            p = p.replace(tzinfo=timezone.utc)
-        return (now - p) <= timedelta(days=14)
-    except Exception:
-        return False
-
-
-def _furnishing_label(furnishing: Optional[str]) -> Optional[str]:
-    """Short badge text for rent cards (FURNISHED, etc.)."""
-    f = (furnishing or "").strip().lower()
-    if f in ("furnished", "fully-furnished"):
-        return "FURNISHED"
-    if f == "semi-furnished":
-        return "SEMI-FURNISHED"
-    if f == "unfurnished":
-        return "UNFURNISHED"
-    return None
 
 
 def _format_price_display(price: float, transaction_type: str) -> str:
@@ -102,10 +72,6 @@ def _property_card_doc(prop: dict) -> dict:
     if transaction_type == "rent" and details:
         location_str = f"{details} | {location_str}"
 
-    furn_label = _furnishing_label(prop.get("furnishing"))
-    posted = prop.get("posted_at")
-    new_badge = _is_new_listing(posted) if transaction_type == "rent" else False
-
     return {
         "_id": str(prop["_id"]),
         "owner_id": str(prop.get("owner_id", "")),
@@ -114,8 +80,6 @@ def _property_card_doc(prop: dict) -> dict:
         "possession_status": possession_status,
         "tag": listing_tag,
         "listing_tag": listing_tag,
-        "furnishing_label": furn_label,
-        "is_new_listing": new_badge,
         "price": price,
         "price_display": price_display,
         "location": location_str,

@@ -40,6 +40,8 @@ async def create_property(property: PropertyCreate):
 async def get_properties(
     page: int = Query(1, ge=1, description="Page number (starts from 1)"),
     limit: int = Query(12, ge=1, le=100, description="Number of items per page"),
+    search: Optional[str] = Query(None, description="Full-text search (same as mobile app; alias of text)"),
+    text: Optional[str] = Query(None, description="Full-text search (alias of search)"),
     transaction_type: Optional[str] = Query(None, description="Filter by transaction type: 'sale' or 'rent'"),
     min_price: Optional[float] = Query(None, ge=0, description="Minimum price filter"),
     max_price: Optional[float] = Query(None, ge=0, description="Maximum price filter"),
@@ -68,7 +70,11 @@ async def get_properties(
     """
     db = await get_database()
     query = {}
-    
+
+    effective_text = (search or text or "").strip()
+    if effective_text:
+        query["$text"] = {"$search": effective_text}
+
     # Basic filters
     if transaction_type:
         query["transaction_type"] = transaction_type.lower()
