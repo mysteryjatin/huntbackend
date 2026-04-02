@@ -89,11 +89,13 @@ app.include_router(
     prefix="/api/success-stories",
     tags=["Success Stories"],
 )
-app.include_router(
-    razorpay_payments.router,
-    prefix="/api/payments/razorpay",
-    tags=["Razorpay"],
-)
+# Razorpay — disabled until RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET are configured.
+# from app.routers import razorpay_payments
+# app.include_router(
+#     razorpay_payments.router,
+#     prefix="/api/payments/razorpay",
+#     tags=["Razorpay"],
+# )
 
 # Serve uploaded images at /uploads/ (same dir as upload router; override with HUNT_UPLOADS_DIR)
 uploads_dir = get_uploads_directory()
