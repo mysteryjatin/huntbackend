@@ -36,6 +36,10 @@ def _get_openai_api_key() -> str:
     return key
 
 
+def _has_openai_api_key() -> bool:
+    return bool((os.getenv("OPENAI_API_KEY") or "").strip())
+
+
 def _extract_first_json_object(text: str) -> Optional[Dict[str, Any]]:
     """
     Best-effort extraction of a JSON object from a model response.
@@ -444,6 +448,7 @@ async def manual_analyze(payload: VaastuManualRequest) -> Dict[str, Any]:
     matching the schema used by `vaastu-result.php`.
     """
     analysis: Dict[str, Any] = _base_sample_analysis(method="manual")
+    has_key = _has_openai_api_key()
 
     try:
         api_key = _get_openai_api_key()
@@ -483,9 +488,13 @@ async def manual_analyze(payload: VaastuManualRequest) -> Dict[str, Any]:
         parsed = _extract_first_json_object(content)
         if isinstance(parsed, dict):
             analysis = parsed
-    except Exception:
-        # Fallback sample mode so the UI flow still works.
-        pass
+        else:
+            raise RuntimeError("OpenAI manual analysis returned non-JSON response.")
+    except Exception as e:
+        # If OpenAI is configured, do not silently fallback to static data.
+        if has_key:
+            raise HTTPException(status_code=502, detail=f"Vaastu AI manual analysis failed: {e}")
+        # No key: keep fallback sample mode so basic flow still works.
 
     analysis = _with_room_overrides(analysis, payload.rooms)
     return {"success": True, "data": analysis}
@@ -506,7 +515,8 @@ async def scan_analyze(file: UploadFile = File(...)) -> Dict[str, Any]:
     # Convert to base64 once so downstream endpoints don't need the file stream.
     image_base64 = base64.b64encode(image_bytes).decode("utf-8")
 
-    # Validate if OPENAI is configured; otherwise assume valid to keep UI working.
+    # Validate with OpenAI when configured; otherwise assume valid to keep UI working.
+    has_key = _has_openai_api_key()
     try:
         api_key = _get_openai_api_key()
         validation = await _validate_floorplan_image_with_openai(
@@ -519,9 +529,11 @@ async def scan_analyze(file: UploadFile = File(...)) -> Dict[str, Any]:
                 "error": validation.get("message") or "Invalid floor plan image.",
                 "data": {"isValid": False},
             }
-    except Exception:
-        # Fallback mode (no key / OpenAI failure): keep the flow running.
-        pass
+    except Exception as e:
+        # If key exists and validation fails, stop the flow (no static fallback).
+        if has_key:
+            raise HTTPException(status_code=502, detail=f"Vaastu image validation failed: {e}")
+        # No key: fallback mode for basic flow.
 
     session_id = str(uuid.uuid4())
     _VASTU_IMAGE_SESSIONS[session_id] = {
@@ -548,6 +560,7 @@ async def analyze_floorplan(payload: VaastuAnalyzeFloorplanRequest) -> Dict[str,
         raise HTTPException(status_code=400, detail="north_direction is required.")
 
     analysis: Dict[str, Any] = _base_sample_analysis(method="scan")
+    has_key = _has_openai_api_key()
     try:
         api_key = _get_openai_api_key()
         analysis = await _analyze_floorplan_with_openai_vision(
@@ -555,9 +568,11 @@ async def analyze_floorplan(payload: VaastuAnalyzeFloorplanRequest) -> Dict[str,
             image_base64=image_base64,
             north_direction=north_direction if not payload.north_image_side else f"{north_direction} (facing {payload.north_image_side})",
         )
-    except Exception:
-        # Fallback to sample so UI flow still works without OpenAI config.
-        pass
+    except Exception as e:
+        # If OpenAI is configured, surface the failure instead of returning static sample.
+        if has_key:
+            raise HTTPException(status_code=502, detail=f"Vaastu floorplan analysis failed: {e}")
+        # No key: fallback sample for basic flow.
 
     # Store last analysis for chat context convenience.
     session["analysis"] = analysis
@@ -582,6 +597,7 @@ async def chat(payload: VaastuChatRequest = Body(...)) -> Dict[str, Any]:
     elif isinstance(context_obj, str):
         context_text = context_obj
 
+    has_key = _has_openai_api_key()
     assistant_response = "Thanks for your question. I can help with Vastu Shastra and home design guidance."
     try:
         api_key = _get_openai_api_key()
@@ -600,7 +616,10 @@ async def chat(payload: VaastuChatRequest = Body(...)) -> Dict[str, Any]:
             max_tokens=1000,
         )
     except Exception as e:
-        # Keep working even if OpenAI isn't configured.
+        # If key exists, return error so frontend doesn't show non-dynamic canned chat.
+        if has_key:
+            raise HTTPException(status_code=502, detail=f"Vaastu chat failed: {e}")
+        # No key: keep a minimal fallback response.
         assistant_response = f"{assistant_response}\n\n(Note: AI backend is using fallback mode.)"
 
     return {"success": True, "message": assistant_response}
