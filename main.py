@@ -89,6 +89,11 @@ app.include_router(
     prefix="/api/success-stories",
     tags=["Success Stories"],
 )
+app.include_router(
+    razorpay_payments.router,
+    prefix="/api/payments/razorpay",
+    tags=["Razorpay"],
+)
 
 # Serve uploaded images at /uploads/ (same dir as upload router; override with HUNT_UPLOADS_DIR)
 uploads_dir = get_uploads_directory()

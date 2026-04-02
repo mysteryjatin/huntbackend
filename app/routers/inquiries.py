@@ -27,7 +27,7 @@ async def create_inquiry(inquiry: InquiryCreate):
     if not user_exists:
         raise HTTPException(status_code=404, detail="User not found")
     
-    inquiry_dict = inquiry.dict()
+    inquiry_dict = inquiry.model_dump(exclude_none=True)
     inquiry_dict["property_id"] = ObjectId(inquiry_dict["property_id"])
     inquiry_dict["user_id"] = ObjectId(inquiry_dict["user_id"])
     inquiry_dict["status"] = "pending"
@@ -47,24 +47,43 @@ async def get_inquiries(
     limit: int = Query(10, ge=1, le=100),
     property_id: Optional[str] = None,
     user_id: Optional[str] = None,
+    owner_id: Optional[str] = None,
     status: Optional[str] = None
 ):
-    """Get all inquiries with optional filters"""
+    """Get all inquiries with optional filters. Use owner_id to list inquiries on that user's listed properties."""
     db = await get_database()
     query = {}
-    
-    if property_id:
+
+    if status:
+        query["status"] = status
+
+    if owner_id:
+        if not ObjectId.is_valid(owner_id):
+            raise HTTPException(status_code=400, detail="Invalid owner ID")
+        owner_oid = ObjectId(owner_id)
+        if property_id:
+            if not ObjectId.is_valid(property_id):
+                raise HTTPException(status_code=400, detail="Invalid property ID")
+            pid = ObjectId(property_id)
+            prop = await db.properties.find_one({"_id": pid, "owner_id": owner_oid})
+            if not prop:
+                raise HTTPException(status_code=404, detail="Property not found or not owned by this user")
+            query["property_id"] = pid
+        else:
+            prop_cursor = db.properties.find({"owner_id": owner_oid}, {"_id": 1})
+            prop_ids = [p["_id"] for p in await prop_cursor.to_list(length=500)]
+            if not prop_ids:
+                return []
+            query["property_id"] = {"$in": prop_ids}
+    elif property_id:
         if not ObjectId.is_valid(property_id):
             raise HTTPException(status_code=400, detail="Invalid property ID")
         query["property_id"] = ObjectId(property_id)
-    
+
     if user_id:
         if not ObjectId.is_valid(user_id):
             raise HTTPException(status_code=400, detail="Invalid user ID")
         query["user_id"] = ObjectId(user_id)
-    
-    if status:
-        query["status"] = status
     
     cursor = db.inquiries.find(query).skip(skip).limit(limit).sort("created_at", -1)
     inquiries = await cursor.to_list(length=limit)
@@ -101,7 +120,7 @@ async def update_inquiry(inquiry_id: str, inquiry_update: InquiryUpdate):
     if not ObjectId.is_valid(inquiry_id):
         raise HTTPException(status_code=400, detail="Invalid inquiry ID")
     
-    update_data = inquiry_update.dict(exclude_unset=True)
+    update_data = inquiry_update.model_dump(exclude_unset=True)
     
     if not update_data:
         raise HTTPException(status_code=400, detail="No fields to update")

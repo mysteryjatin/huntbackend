@@ -300,6 +300,10 @@ class InquiryBase(BaseModel):
     user_id: str
     message: str
     contact_preference: str = Field(..., description="phone or email")
+    sender_name: Optional[str] = None
+    sender_email: Optional[str] = None
+    sender_phone: Optional[str] = None
+    interested_as: Optional[str] = Field(None, description="Individual or Dealer")
 
 
 class InquiryCreate(InquiryBase):
@@ -826,3 +830,31 @@ class SuccessStory(BaseModel):
     user_id: Optional[str] = None
     status: str = "new"
     created_at: datetime
+
+
+# ── Razorpay (Advertising Packages — website) ───────────────────────────────
+
+class RazorpayCreateOrderRequest(BaseModel):
+    package_id: str = Field(..., min_length=3, description="Server-defined package id")
+    user_id: Optional[str] = Field(default=None, description="Optional logged-in user id")
+
+
+class RazorpayCreateOrderResponse(BaseModel):
+    key_id: str = Field(..., description="Public key for Razorpay Checkout")
+    order_id: str
+    amount: int = Field(..., description="Amount in paise")
+    currency: str = "INR"
+    package_id: str
+    package_label: str
+
+
+class RazorpayVerifyRequest(BaseModel):
+    razorpay_order_id: str
+    razorpay_payment_id: str
+    razorpay_signature: str
+
+
+class RazorpayVerifyResponse(BaseModel):
+    ok: bool
+    message: str
+    package_id: str = ""
