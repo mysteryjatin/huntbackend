@@ -750,3 +750,43 @@ class ChannelPartnerApplication(BaseModel):
     message: Optional[str] = None
     status: str = "new"
     created_at: datetime
+
+
+# ── Career Applications ────────────────────────────────────────────────────────
+
+class CareerApplicationCreate(BaseModel):
+    first_name: str = Field(..., min_length=1, description="Applicant first name")
+    last_name: str = Field(..., min_length=1, description="Applicant last name")
+    email: EmailStr
+    mobile: str = Field(..., min_length=5, max_length=20)
+    state: Optional[str] = Field(default=None)
+    city: Optional[str] = Field(default=None)
+    job_category: Optional[str] = Field(default=None)
+    experience_years: Optional[int] = Field(default=None, ge=0)
+    experience_months: Optional[int] = Field(default=None, ge=0, le=11)
+    resume_url: Optional[str] = Field(default=None, description="URL of uploaded resume file")
+    self_description: Optional[str] = Field(default=None)
+    position_discovery: Optional[str] = Field(default=None, description="How they found the position")
+
+
+class CareerApplication(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+        arbitrary_types_allowed=True,
+        json_encoders={ObjectId: str},
+    )
+    id: Optional[PyObjectId] = Field(None, alias="_id")
+    first_name: str
+    last_name: str
+    email: str
+    mobile: str
+    state: Optional[str] = None
+    city: Optional[str] = None
+    job_category: Optional[str] = None
+    experience_years: Optional[int] = None
+    experience_months: Optional[int] = None
+    resume_url: Optional[str] = None
+    self_description: Optional[str] = None
+    position_discovery: Optional[str] = None
+    status: str = "new"
+    created_at: datetime
