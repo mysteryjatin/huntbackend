@@ -17,10 +17,10 @@ router = APIRouter()
 
 # Must match App Store Connect product IDs and frontend iap_product_ids.dart
 APPLE_PRODUCT_TO_PLAN = {
-    "com.hunt.property.subscription.bronze": "bronze",
-    "com.hunt.property.subscription.silver": "silver",
-    "com.hunt.property.subscription.gold": "gold",
-    "com.hunt.property.subscription.platinum": "platinum",
+    "com.hunt.property.subscription.bronze.v2": "bronze",
+    "com.hunt.property.subscription.silver.v2": "silver",
+    "com.hunt.property.subscription.gold.v2": "gold",
+    "com.hunt.property.subscription.platinum.v2": "platinum",
 }
 
 APP_STORE_VERIFY_PRODUCTION = "https://buy.itunes.apple.com/verifyReceipt"
@@ -74,7 +74,7 @@ SUBSCRIPTION_PLANS = [
         "text_color": "#FFFFFF",
         "is_dark": False,
         "sort_order": 2,
-        "apple_product_id": "com.hunt.property.subscription.bronze",
+        "apple_product_id": "com.hunt.property.subscription.bronze.v2",
     },
     {
         "id": "silver",
@@ -97,7 +97,7 @@ SUBSCRIPTION_PLANS = [
         "text_color": "#000000",
         "is_dark": False,
         "sort_order": 3,
-        "apple_product_id": "com.hunt.property.subscription.silver",
+        "apple_product_id": "com.hunt.property.subscription.silver.v2",
     },
     {
         "id": "gold",
@@ -120,7 +120,7 @@ SUBSCRIPTION_PLANS = [
         "text_color": "#000000",
         "is_dark": False,
         "sort_order": 4,
-        "apple_product_id": "com.hunt.property.subscription.gold",
+        "apple_product_id": "com.hunt.property.subscription.gold.v2",
     },
     {
         "id": "platinum",
@@ -143,7 +143,7 @@ SUBSCRIPTION_PLANS = [
         "text_color": "#FFFFFF",
         "is_dark": True,
         "sort_order": 5,
-        "apple_product_id": "com.hunt.property.subscription.platinum",
+        "apple_product_id": "com.hunt.property.subscription.platinum.v2",
     },
 ]
 
