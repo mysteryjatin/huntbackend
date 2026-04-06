@@ -183,12 +183,20 @@ async def get_home_sections(
     recommend = []
     for_rent = []
 
-    if show_sale:
-        top_match = {
-            "transaction_type": "sale",
+    if show_sale or show_rent:
+        # Show ALL properties in the selected city for "Top Selling" when no specific
+        # transaction tab is active. For "buy" tab restrict to sale; for "rent" tab
+        # restrict to rent; for "all" / "residential" / "commercial" show both.
+        top_match: dict = {
             "location.city": {"$regex": city_filter, "$options": "i"},
             **category_filter,
         }
+        if filter_type == "buy":
+            top_match["transaction_type"] = "sale"
+        elif filter_type == "rent":
+            top_match["transaction_type"] = "rent"
+        # else: no transaction_type filter — includes sale + rent
+
         top_cursor = (
             db.properties.find(top_match)
             .sort("posted_at", -1)
@@ -198,7 +206,11 @@ async def get_home_sections(
         top_selling = [_property_card_doc(p) for p in top_props]
         add_favorite(top_selling)
 
-        rec_match = {"transaction_type": "sale", **category_filter}
+        rec_match: dict = {**category_filter}
+        if filter_type == "buy":
+            rec_match["transaction_type"] = "sale"
+        elif filter_type == "rent":
+            rec_match["transaction_type"] = "rent"
         rec_cursor = (
             db.properties.find(rec_match)
             .sort("posted_at", -1)
